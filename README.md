@@ -281,3 +281,7 @@ source .venv/bin/activate
 pip install -e '.[dev]'
 pytest tests/ -v
 ```
+
+## License
+
+MIT License. See [LICENSE](LICENSE) for details.
