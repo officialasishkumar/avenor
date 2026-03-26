@@ -8,7 +8,7 @@
       <h1>{{ selected_repository.full_name }}</h1>
       <p class="lede">{{ selected_repository.description or "No description available." }}</p>
     </div>
-    {% if selected_repository.url %}
+    {% if selected_repository.url and selected_repository.host == 'github.com' %}
     <a href="{{ selected_repository.url }}" target="_blank" rel="noopener" class="btn btn-outline">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"/></svg>
       View on GitHub
@@ -86,6 +86,8 @@
     <span class="health-value">{{ "{:,}".format(overview.releases_count) }}</span>
   </div>
 </div>
+
+{% include "partials/period_selector.html" %}
 
 <!-- Charts -->
 <div class="charts-grid">

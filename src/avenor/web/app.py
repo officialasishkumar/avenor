@@ -1,11 +1,6 @@
-"""Avenor web application — FastAPI with Jinja2 templates and REST API.
-
-Combines Augur's powerful data API with 8knot's rich visualization UI.
-"""
+"""Avenor web application — FastAPI with Jinja2 templates and REST API."""
 from __future__ import annotations
 
-import asyncio
-import json
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +10,7 @@ from fastapi import FastAPI, Form, Query, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
 
 from avenor.db import init_db, session_scope
 from avenor.services.metrics import (
@@ -43,11 +39,29 @@ from avenor.services.metrics import (
     get_top_issue_authors,
     get_top_pr_authors,
 )
-from avenor.services.repositories import add_repository, get_repository, list_repositories
+from avenor.services.repositories import (
+    add_repository,
+    delete_repository,
+    get_repository,
+    list_repositories,
+)
 from avenor.services.sync import sync_repository
 
-# Plotly palette — same baby-blue gradient as 8knot
+# Plotly color palette
 COLORS = ["#38bdf8", "#818cf8", "#f472b6", "#34d399", "#fbbf24", "#fb923c", "#a78bfa", "#22d3ee"]
+
+VALID_PERIODS = {"day", "week", "month"}
+
+
+def _validated_period(period: str | None) -> str:
+    if period and period in VALID_PERIODS:
+        return period
+    return "month"
+
+
+class AddRepoRequest(BaseModel):
+    url: str
+    auto_sync: bool = False
 
 
 def create_app() -> FastAPI:
@@ -66,7 +80,7 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     # -------------------------------------------------------------------
-    # JSON API
+    # JSON API — Repository management
     # -------------------------------------------------------------------
 
     @app.get("/api/repos")
@@ -77,14 +91,89 @@ def create_app() -> FastAPI:
                     "id": r.id,
                     "full_name": r.full_name,
                     "url": r.url,
+                    "description": r.description,
                     "stars": r.stars,
                     "forks": r.forks,
                     "primary_language": r.primary_language,
                     "sync_status": r.sync_status,
+                    "sync_error": r.sync_error,
                     "last_synced_at": r.last_synced_at.isoformat() if r.last_synced_at else None,
                 }
                 for r in list_repositories(session)
             ]
+
+    @app.post("/api/repos")
+    def api_add_repo(body: AddRepoRequest):
+        try:
+            with session_scope() as session:
+                repo = add_repository(session, body.url)
+                repo_data = {
+                    "id": repo.id,
+                    "full_name": repo.full_name,
+                    "url": repo.url,
+                    "sync_status": repo.sync_status,
+                }
+            if body.auto_sync:
+                try:
+                    from avenor.tasks.collection import sync_repo
+                    result = sync_repo.delay(repo_data["id"])
+                    repo_data["sync_task_id"] = result.id
+                    repo_data["sync_status"] = "queued"
+                except Exception:
+                    with session_scope() as session:
+                        r = get_repository(session, repo_data["id"])
+                        if r:
+                            sync_repository(session, r)
+                            repo_data["sync_status"] = "ready"
+            return repo_data
+        except ValueError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+
+    @app.delete("/api/repos/{repository_id}")
+    def api_delete_repo(repository_id: int):
+        with session_scope() as session:
+            deleted = delete_repository(session, repository_id)
+        if not deleted:
+            return JSONResponse({"error": "Repository not found"}, status_code=404)
+        return {"status": "deleted", "id": repository_id}
+
+    @app.get("/api/repos/{repository_id}/status")
+    def api_repo_status(repository_id: int):
+        with session_scope() as session:
+            repo = get_repository(session, repository_id)
+            if repo is None:
+                return JSONResponse({"error": "Repository not found"}, status_code=404)
+            return {
+                "id": repo.id,
+                "full_name": repo.full_name,
+                "sync_status": repo.sync_status,
+                "sync_error": repo.sync_error,
+                "last_synced_at": repo.last_synced_at.isoformat() if repo.last_synced_at else None,
+            }
+
+    @app.post("/api/repos/{repository_id}/sync")
+    def api_sync(repository_id: int):
+        with session_scope() as session:
+            repo = get_repository(session, repository_id)
+            if repo is None:
+                return JSONResponse({"error": "Repository not found"}, status_code=404)
+            if repo.sync_status == "running":
+                return {"status": "already_running", "id": repository_id}
+        try:
+            from avenor.tasks.collection import sync_repo
+            result = sync_repo.delay(repository_id)
+            return {"task_id": result.id, "status": "queued"}
+        except Exception:
+            with session_scope() as session:
+                repo = get_repository(session, repository_id)
+                if repo is None:
+                    return JSONResponse({"error": "Repository not found"}, status_code=404)
+                sync_repository(session, repo)
+                return {"status": "completed"}
+
+    # -------------------------------------------------------------------
+    # JSON API — Metrics
+    # -------------------------------------------------------------------
 
     @app.get("/api/repos/{repository_id}/overview")
     def api_overview(repository_id: int):
@@ -95,7 +184,7 @@ def create_app() -> FastAPI:
     @app.get("/api/repos/{repository_id}/activity")
     def api_activity(repository_id: int, period: str = "month"):
         with session_scope() as session:
-            return get_activity_series(session, repository_id, period)
+            return get_activity_series(session, repository_id, _validated_period(period))
 
     @app.get("/api/repos/{repository_id}/contributors")
     def api_contributors(repository_id: int, limit: int = 15):
@@ -137,20 +226,6 @@ def create_app() -> FastAPI:
         repo_ids = [int(x) for x in ids.split(",") if x.strip()]
         with session_scope() as session:
             return get_comparison_stats(session, repo_ids)
-
-    @app.post("/api/repos/{repository_id}/sync")
-    def api_sync(repository_id: int):
-        try:
-            from avenor.tasks.collection import sync_repo
-            result = sync_repo.delay(repository_id)
-            return {"task_id": result.id, "status": "queued"}
-        except Exception:
-            with session_scope() as session:
-                repo = get_repository(session, repository_id)
-                if repo is None:
-                    return JSONResponse({"error": "Repository not found"}, status_code=404)
-                sync_repository(session, repo)
-                return {"status": "completed"}
 
     # -------------------------------------------------------------------
     # HTML pages
@@ -218,19 +293,21 @@ def create_app() -> FastAPI:
 
     # -- Overview --
     @app.get("/repos/{repository_id}/overview")
-    def repo_overview(request: Request, repository_id: int):
+    def repo_overview(request: Request, repository_id: int, period: str | None = None):
+        p = _validated_period(period)
         with session_scope() as session:
             repo = get_repository(session, repository_id)
             if repo is None:
                 return RedirectResponse("/", status_code=303)
             overview = get_overview(session, repository_id)
-            activity = get_activity_series(session, repository_id)
+            activity = get_activity_series(session, repository_id, p)
             languages = get_language_breakdown(session, repository_id)
             bus = get_bus_factor(session, repository_id)
             contributor_types = get_contributor_types(session, repository_id)
             ctx = _common_ctx(request, session, repo, "overview", "Overview")
 
         ctx.update({
+            "period": p,
             "overview": overview,
             "bus_factor": bus,
             "contributor_types": contributor_types,
@@ -246,18 +323,20 @@ def create_app() -> FastAPI:
 
     # -- Contributions --
     @app.get("/repos/{repository_id}/contributions")
-    def repo_contributions(request: Request, repository_id: int):
+    def repo_contributions(request: Request, repository_id: int, period: str | None = None):
+        p = _validated_period(period)
         with session_scope() as session:
             repo = get_repository(session, repository_id)
             if repo is None:
                 return RedirectResponse("/", status_code=303)
-            activity = get_activity_series(session, repository_id)
+            activity = get_activity_series(session, repository_id, p)
             domains = get_commit_domain_breakdown(session, repository_id)
-            churn = get_code_churn_series(session, repository_id)
+            churn = get_code_churn_series(session, repository_id, p)
             heatmap_data = get_contributor_activity_heatmap(session, repository_id)
             ctx = _common_ctx(request, session, repo, "contributions", "Contributions")
 
         ctx.update({
+            "period": p,
             "activity_chart": _multi_line_chart("Contribution Activity", activity),
             "domains_chart": _horizontal_bar_chart("Commit Email Domains", domains),
             "churn_chart": _area_chart("Code Churn (Lines Changed)", churn),
@@ -267,19 +346,21 @@ def create_app() -> FastAPI:
 
     # -- Contributors --
     @app.get("/repos/{repository_id}/contributors")
-    def repo_contributors(request: Request, repository_id: int):
+    def repo_contributors(request: Request, repository_id: int, period: str | None = None):
+        p = _validated_period(period)
         with session_scope() as session:
             repo = get_repository(session, repository_id)
             if repo is None:
                 return RedirectResponse("/", status_code=303)
             top = get_top_contributors(session, repository_id)
-            new_contribs = get_new_contributors_series(session, repository_id)
+            new_contribs = get_new_contributors_series(session, repository_id, p)
             types = get_contributor_types(session, repository_id)
             bus = get_bus_factor(session, repository_id)
-            domain_series = get_domain_activity_series(session, repository_id)
+            domain_series = get_domain_activity_series(session, repository_id, period=p)
             ctx = _common_ctx(request, session, repo, "contributors", "Contributors")
 
         ctx.update({
+            "period": p,
             "top_contributors": top,
             "contributor_types": types,
             "bus_factor": bus,
@@ -291,18 +372,20 @@ def create_app() -> FastAPI:
 
     # -- Issues --
     @app.get("/repos/{repository_id}/issues")
-    def repo_issues(request: Request, repository_id: int):
+    def repo_issues(request: Request, repository_id: int, period: str | None = None):
+        p = _validated_period(period)
         with session_scope() as session:
             repo = get_repository(session, repository_id)
             if repo is None:
                 return RedirectResponse("/", status_code=303)
             stats = get_issue_stats(session, repository_id)
-            activity = get_issue_activity_series(session, repository_id)
+            activity = get_issue_activity_series(session, repository_id, p)
             staleness = get_issue_staleness(session, repository_id)
             top_authors = get_top_issue_authors(session, repository_id)
             ctx = _common_ctx(request, session, repo, "issues", "Issues")
 
         ctx.update({
+            "period": p,
             "stats": stats,
             "activity_chart": _multi_line_chart("Issues Opened vs Closed", activity),
             "staleness_chart": _donut_chart("Open Issue Staleness", staleness),
@@ -312,19 +395,21 @@ def create_app() -> FastAPI:
 
     # -- Pull Requests --
     @app.get("/repos/{repository_id}/pull-requests")
-    def repo_prs(request: Request, repository_id: int):
+    def repo_prs(request: Request, repository_id: int, period: str | None = None):
+        p = _validated_period(period)
         with session_scope() as session:
             repo = get_repository(session, repository_id)
             if repo is None:
                 return RedirectResponse("/", status_code=303)
             stats = get_pr_stats(session, repository_id)
-            activity = get_pr_activity_series(session, repository_id)
+            activity = get_pr_activity_series(session, repository_id, p)
             size_dist = get_pr_size_distribution(session, repository_id)
-            merge_times = get_pr_merge_time_series(session, repository_id)
+            merge_times = get_pr_merge_time_series(session, repository_id, p)
             top_authors = get_top_pr_authors(session, repository_id)
             ctx = _common_ctx(request, session, repo, "pull_requests", "Pull Requests")
 
         ctx.update({
+            "period": p,
             "stats": stats,
             "activity_chart": _multi_line_chart("PR Activity", activity),
             "size_chart": _bar_chart("PR Size Distribution", size_dist),
@@ -335,18 +420,20 @@ def create_app() -> FastAPI:
 
     # -- Codebase --
     @app.get("/repos/{repository_id}/codebase")
-    def repo_codebase(request: Request, repository_id: int):
+    def repo_codebase(request: Request, repository_id: int, period: str | None = None):
+        p = _validated_period(period)
         with session_scope() as session:
             repo = get_repository(session, repository_id)
             if repo is None:
                 return RedirectResponse("/", status_code=303)
             hotspots = get_hotspot_files(session, repository_id)
-            churn = get_code_churn_series(session, repository_id)
+            churn = get_code_churn_series(session, repository_id, p)
             file_types = get_file_type_breakdown(session, repository_id)
             release_cadence = get_release_cadence(session, repository_id)
             ctx = _common_ctx(request, session, repo, "codebase", "Codebase")
 
         ctx.update({
+            "period": p,
             "hotspots": hotspots,
             "churn_chart": _area_chart("Code Churn Over Time", churn),
             "file_types_chart": _donut_chart("File Types Changed", file_types),

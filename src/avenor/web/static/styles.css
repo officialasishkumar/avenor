@@ -1,6 +1,6 @@
 /* ==========================================================================
    Avenor — Dark analytics dashboard theme
-   Inspired by 8knot's visualization-first design + Augur's data depth
+   Dark analytics dashboard theme
    ========================================================================== */
 
 :root {
@@ -635,6 +635,212 @@ a { color: inherit; text-decoration: none; }
 .muted { color: var(--muted); }
 
 /* ==========================================================================
+   Toast notifications
+   ========================================================================== */
+
+#toast-container {
+  position: fixed;
+  top: calc(var(--topbar-height) + 12px);
+  right: 16px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 420px;
+  width: 100%;
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  font-size: 0.88rem;
+  pointer-events: auto;
+  opacity: 0;
+  transform: translateX(30px);
+  transition: opacity 0.3s, transform 0.3s;
+}
+.toast-visible { opacity: 1; transform: translateX(0); }
+.toast-icon { flex-shrink: 0; margin-top: 1px; }
+.toast-message { flex: 1; }
+.toast-close {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 2px;
+  flex-shrink: 0;
+}
+.toast-close:hover { color: var(--text); }
+
+.toast-success { border-color: rgba(52, 211, 153, 0.3); }
+.toast-success .toast-icon { color: var(--success); }
+.toast-error { border-color: rgba(249, 115, 22, 0.3); }
+.toast-error .toast-icon { color: var(--danger); }
+.toast-warning { border-color: rgba(251, 191, 36, 0.3); }
+.toast-warning .toast-icon { color: var(--warning); }
+.toast-info { border-color: rgba(56, 189, 248, 0.3); }
+.toast-info .toast-icon { color: var(--accent); }
+
+/* ==========================================================================
+   Spinner
+   ========================================================================== */
+
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ==========================================================================
+   Sidebar search
+   ========================================================================== */
+
+.sidebar-search {
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.82rem;
+  margin-bottom: 0.6rem;
+  transition: border-color 0.2s;
+}
+.sidebar-search:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+.sidebar-search::placeholder { color: var(--muted); }
+
+/* ==========================================================================
+   Sidebar error
+   ========================================================================== */
+
+.sidebar-error {
+  background: rgba(249, 115, 22, 0.08);
+  border: 1px solid rgba(249, 115, 22, 0.2);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem;
+  font-size: 0.82rem;
+}
+.sidebar-error strong { color: var(--danger); display: block; margin-bottom: 0.3rem; }
+.sidebar-error p { color: var(--text-secondary); margin-bottom: 0.5rem; word-break: break-word; }
+
+/* ==========================================================================
+   Toggle / checkbox
+   ========================================================================== */
+
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.toggle-label input[type="checkbox"] {
+  accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+}
+
+/* ==========================================================================
+   Period selector
+   ========================================================================== */
+
+.period-selector {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+.period-label {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-right: 0.3rem;
+  font-weight: 500;
+}
+.period-pill {
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.period-pill:hover { border-color: var(--accent); color: var(--accent); }
+.period-pill.active {
+  background: var(--accent-glow);
+  border-color: rgba(56, 189, 248, 0.4);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* ==========================================================================
+   Delete button
+   ========================================================================== */
+
+.btn-danger-outline {
+  background: transparent;
+  border: 1px solid rgba(249, 115, 22, 0.25);
+  color: var(--muted);
+  padding: 0.4rem 0.5rem;
+}
+.btn-danger-outline:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+  background: rgba(249, 115, 22, 0.08);
+}
+
+/* ==========================================================================
+   Mobile navigation
+   ========================================================================== */
+
+.mobile-nav-wrapper { position: relative; }
+.mobile-nav-btn { display: none; }
+
+.mobile-nav-menu {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+  min-width: 200px;
+  z-index: 200;
+  padding: 0.4rem;
+}
+.mobile-nav-open { display: block; }
+
+.mobile-nav-item {
+  display: block;
+  padding: 0.6rem 0.85rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  transition: all 0.15s;
+}
+.mobile-nav-item:hover { background: rgba(255, 255, 255, 0.06); color: var(--text); }
+.mobile-nav-item.active { background: var(--accent-glow); color: var(--accent); font-weight: 600; }
+
+/* ==========================================================================
    Responsive
    ========================================================================== */
 
@@ -652,11 +858,14 @@ a { color: inherit; text-decoration: none; }
   }
   .content { padding: 1rem; }
   .hero h1 { font-size: 1.5rem; }
-  .topnav { display: none; }
+  .topnav-desktop { display: none; }
+  .mobile-nav-btn { display: inline-flex; }
   .stats-row { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
   .cards-grid--repos { grid-template-columns: 1fr; }
+  #toast-container { right: 8px; left: 8px; max-width: none; }
 }
 
 @media (min-width: 901px) {
   .sidebar-toggle { display: none; }
+  .mobile-nav-wrapper { display: none; }
 }

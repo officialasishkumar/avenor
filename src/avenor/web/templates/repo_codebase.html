@@ -11,6 +11,8 @@
   </div>
 </section>
 
+{% include "partials/period_selector.html" %}
+
 <div class="charts-grid charts-grid--2col">
   <div class="chart-card">
     {{ churn_chart|safe }}
@@ -64,7 +66,7 @@
           <td class="muted">{{ "{:,}".format(f.churn) }}</td>
         </tr>
         {% else %}
-        <tr><td colspan="4" class="muted">No file data collected.</td></tr>
+        <tr><td colspan="4" class="muted">No file data collected. Sync the repository first.</td></tr>
         {% endfor %}
       </tbody>
     </table>

@@ -78,3 +78,13 @@ def add_repository(session: Session, url: str) -> Repository:
     session.add(repository)
     session.flush()
     return repository
+
+
+def delete_repository(session: Session, repository_id: int) -> bool:
+    """Delete a repository and all its collected data. Returns True if found."""
+    repo = session.get(Repository, repository_id)
+    if repo is None:
+        return False
+    session.delete(repo)
+    session.flush()
+    return True

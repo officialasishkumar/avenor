@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
   # -----------------------------------------------------------------------
-  # Redis — message broker + result backend (like Augur's RabbitMQ + Redis)
+  # Redis — message broker + result backend
   # -----------------------------------------------------------------------
   redis:
     image: redis:7-alpine
@@ -69,7 +69,7 @@ services:
       - avenor
 
   # -----------------------------------------------------------------------
-  # Celery Worker — background data collection (like Augur's Celery workers)
+  # Celery Worker — background data collection
   # -----------------------------------------------------------------------
   worker:
     build: .
@@ -94,7 +94,7 @@ services:
       - avenor
 
   # -----------------------------------------------------------------------
-  # Flower — Celery task monitoring UI (like Augur's Flower service)
+  # Flower — Celery task monitoring UI
   # -----------------------------------------------------------------------
   flower:
     build: .

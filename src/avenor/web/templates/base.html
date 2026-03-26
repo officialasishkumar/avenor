@@ -10,6 +10,9 @@
     <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}">
   </head>
   <body>
+    <!-- Toast notification container -->
+    <div id="toast-container"></div>
+
     <header class="topbar">
       <div class="topbar-left">
         <button class="sidebar-toggle" onclick="document.body.classList.toggle('sidebar-collapsed')" aria-label="Toggle sidebar">
@@ -20,7 +23,9 @@
           <span class="brand-text">Avenor</span>
         </a>
       </div>
-      <nav class="topnav">
+
+      {# Desktop navigation #}
+      <nav class="topnav topnav-desktop">
         {% if selected_repository %}
         <a class="nav-pill {% if page_name == 'overview' %}active{% endif %}" href="/repos/{{ selected_repository.id }}/overview">Overview</a>
         <a class="nav-pill {% if page_name == 'contributions' %}active{% endif %}" href="/repos/{{ selected_repository.id }}/contributions">Contributions</a>
@@ -30,14 +35,32 @@
         <a class="nav-pill {% if page_name == 'codebase' %}active{% endif %}" href="/repos/{{ selected_repository.id }}/codebase">Codebase</a>
         {% endif %}
       </nav>
+
       <div class="topbar-right">
         {% if selected_repository %}
-        <form action="/repos/{{ selected_repository.id }}/sync" method="post" class="inline-form">
-          <button type="submit" class="btn btn-sm btn-sync" title="Sync {{ selected_repository.name }}">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
-            Sync
+        {# Mobile nav dropdown #}
+        <div class="mobile-nav-wrapper">
+          <button id="mobile-nav-toggle" class="btn btn-sm btn-outline mobile-nav-btn" aria-expanded="false" aria-label="Navigation menu">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+            Pages
           </button>
-        </form>
+          <div id="mobile-nav-menu" class="mobile-nav-menu">
+            <a class="mobile-nav-item {% if page_name == 'overview' %}active{% endif %}" href="/repos/{{ selected_repository.id }}/overview">Overview</a>
+            <a class="mobile-nav-item {% if page_name == 'contributions' %}active{% endif %}" href="/repos/{{ selected_repository.id }}/contributions">Contributions</a>
+            <a class="mobile-nav-item {% if page_name == 'contributors' %}active{% endif %}" href="/repos/{{ selected_repository.id }}/contributors">Contributors</a>
+            <a class="mobile-nav-item {% if page_name == 'issues' %}active{% endif %}" href="/repos/{{ selected_repository.id }}/issues">Issues</a>
+            <a class="mobile-nav-item {% if page_name == 'pull_requests' %}active{% endif %}" href="/repos/{{ selected_repository.id }}/pull-requests">Pull Requests</a>
+            <a class="mobile-nav-item {% if page_name == 'codebase' %}active{% endif %}" href="/repos/{{ selected_repository.id }}/codebase">Codebase</a>
+          </div>
+        </div>
+
+        <button class="btn btn-sm btn-sync" data-sync-id="{{ selected_repository.id }}" onclick="syncRepo({{ selected_repository.id }})" title="Sync {{ selected_repository.name }}">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+          Sync
+        </button>
+        <button class="btn btn-sm btn-danger-outline" onclick="deleteRepo({{ selected_repository.id }}, '{{ selected_repository.full_name }}')" title="Delete {{ selected_repository.name }}">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        </button>
         {% endif %}
       </div>
     </header>
@@ -46,10 +69,11 @@
       <aside class="sidebar">
         <div class="sidebar-section">
           <h2 class="sidebar-heading">Repositories</h2>
+          <input type="search" id="sidebar-search" class="sidebar-search" placeholder="Filter repositories..." autocomplete="off">
           <ul class="repo-list">
             {% for repository in repositories %}
             <li>
-              <a href="/repos/{{ repository.id }}/overview"
+              <a href="/repos/{{ repository.id }}/overview" data-repo-id="{{ repository.id }}"
                  class="repo-item {% if selected_repository and selected_repository.id == repository.id %}selected{% endif %}">
                 <div class="repo-item-info">
                   <span class="repo-item-name">{{ repository.full_name }}</span>
@@ -69,19 +93,33 @@
 
         <div class="sidebar-section">
           <h2 class="sidebar-heading">Add Repository</h2>
-          <form action="/repos" method="post" class="repo-form">
-            <input name="repo_url" type="url" placeholder="https://github.com/owner/repo" required autocomplete="off">
-            <button type="submit" class="btn btn-primary">
+          <form id="add-repo-form" class="repo-form">
+            <input id="add-repo-input" name="repo_url" type="url" placeholder="https://github.com/owner/repo" required autocomplete="off">
+            <label class="toggle-label">
+              <input type="checkbox" id="auto-sync-toggle" checked>
+              <span>Auto-sync after adding</span>
+            </label>
+            <button type="submit" id="add-repo-btn" class="btn btn-primary">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
               Add &amp; Track
             </button>
           </form>
         </div>
 
+        {# Show sync error if viewing a failed repo #}
+        {% if selected_repository and selected_repository.sync_error %}
+        <div class="sidebar-section">
+          <div class="sidebar-error">
+            <strong>Last sync error:</strong>
+            <p>{{ selected_repository.sync_error }}</p>
+            <button class="btn btn-sm btn-sync" onclick="syncRepo({{ selected_repository.id }})">Retry Sync</button>
+          </div>
+        </div>
+        {% endif %}
+
         <div class="sidebar-section sidebar-footer">
           <div class="sidebar-brand">
             <span class="muted">Avenor v0.2</span>
-            <span class="muted">Powered by Augur + 8knot</span>
           </div>
         </div>
       </aside>
@@ -97,26 +135,10 @@
       </main>
     </div>
 
-    <script>
-      // Auto-refresh sync status
-      function checkSyncStatus() {
-        document.querySelectorAll('.status-running').forEach(el => {
-          el.classList.add('status-pulse');
-        });
-      }
-      checkSyncStatus();
-      setInterval(() => {
-        fetch('/api/repos').then(r => r.json()).then(repos => {
-          const running = repos.some(r => r.sync_status === 'running');
-          if (running) {
-            checkSyncStatus();
-          } else {
-            document.querySelectorAll('.status-pulse').forEach(el => {
-              el.classList.remove('status-pulse');
-            });
-          }
-        }).catch(() => {});
-      }, 5000);
-    </script>
+    <script src="{{ url_for('static', path='app.js') }}"></script>
+    {# Keep noscript fallback form working #}
+    <noscript>
+      <style>.repo-form { action: /repos; method: post; }</style>
+    </noscript>
   </body>
 </html>

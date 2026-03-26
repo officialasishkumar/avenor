@@ -1,6 +1,6 @@
 """Background collection tasks using Celery.
 
-These mirror Augur's phased collection approach:
+Phased collection:
   1. GitHub metadata collection
   2. Git commit log collection
 """

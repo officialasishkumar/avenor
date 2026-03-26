@@ -35,6 +35,8 @@
   </div>
 </div>
 
+{% include "partials/period_selector.html" %}
+
 <div class="charts-grid charts-grid--2col">
   <div class="chart-card">
     {{ contributors_chart|safe }}
@@ -71,7 +73,7 @@
           <td>
             <div class="contributor-cell">
               {% if c.avatar_url %}
-              <img src="{{ c.avatar_url }}" alt="" class="avatar" width="28" height="28">
+              <img src="{{ c.avatar_url }}" alt="" class="avatar" width="28" height="28" loading="lazy">
               {% endif %}
               <span>{{ c.label }}</span>
             </div>
@@ -84,7 +86,7 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="3" class="muted">No contributors collected.</td></tr>
+        <tr><td colspan="3" class="muted">No contributors collected. Sync the repository first.</td></tr>
         {% endfor %}
       </tbody>
     </table>

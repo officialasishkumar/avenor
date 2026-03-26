@@ -1,7 +1,4 @@
-"""Analytics and metrics service — CHAOSS-inspired open-source health metrics.
-
-Mirrors the rich analytics from Augur's metrics layer and 8knot's visualizations.
-"""
+"""Analytics and metrics service — CHAOSS-inspired open-source health metrics."""
 from __future__ import annotations
 
 from collections import Counter, defaultdict
@@ -126,7 +123,7 @@ def get_activity_series(session: Session, repository_id: int, period: str = "mon
 
 
 # ---------------------------------------------------------------------------
-# Contributor metrics (8knot-inspired)
+# Contributor metrics
 # ---------------------------------------------------------------------------
 
 def get_new_contributors_series(session: Session, repository_id: int, period: str = "month") -> list[dict[str, Any]]:
