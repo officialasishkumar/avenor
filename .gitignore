@@ -5,3 +5,8 @@ __pycache__/
 .ruff_cache/
 .avenor/
 *.egg-info/
+dist/
+build/
+*.db
+.env
+
