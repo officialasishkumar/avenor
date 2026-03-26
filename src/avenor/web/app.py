@@ -7,7 +7,7 @@ from typing import Any
 
 import plotly.graph_objects as go
 import plotly.io as pio
-from fastapi import FastAPI, Form, Query, Request
+from fastapi import Body, FastAPI, Form, Query, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -188,14 +188,11 @@ def create_app() -> FastAPI:
             "data_dir": str(get_settings().data_dir),
         }
 
-    class SaveSettingsRequest(BaseModel):
-        github_token: str | None = None
-
     @app.post("/api/settings")
-    def api_save_settings(body: SaveSettingsRequest):
+    def api_save_settings(github_token: str | None = Body(None, embed=True)):
         ui = load_ui_settings()
-        if body.github_token is not None:
-            token = body.github_token.strip()
+        if github_token is not None:
+            token = github_token.strip()
             if token:
                 ui["github_token"] = token
             else:
