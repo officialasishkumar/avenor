@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>Contributors</h1>
+    <p class="lede">Top contributors and contributor growth for {{ selected_repository.full_name }}.</p>
+  </div>
+</section>
+
+<section class="cards-grid cards-grid--charts">
+  <article class="card chart-card">
+    <h2>Top Contributors</h2>
+    {{ contributors_chart|safe }}
+  </article>
+  <article class="card chart-card">
+    <h2>New Contributors</h2>
+    {{ new_contributors_chart|safe }}
+  </article>
+</section>
+
+<section class="card">
+  <h2>Contributor Ranking</h2>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Contributor</th>
+        <th>Contributions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for contributor in top_contributors %}
+      <tr>
+        <td>{{ contributor.label }}</td>
+        <td>{{ contributor.value }}</td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="2" class="muted">No contributors collected.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

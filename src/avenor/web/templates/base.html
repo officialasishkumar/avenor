@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ page_title }} | Avenor</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}">
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <a href="/">Avenor</a>
+      </div>
+      <nav class="topnav">
+        {% if selected_repository %}
+        <a class="{% if page_name == 'overview' %}active{% endif %}" href="/repos/{{ selected_repository.id }}/overview">Overview</a>
+        <a class="{% if page_name == 'contributions' %}active{% endif %}" href="/repos/{{ selected_repository.id }}/contributions">Contributions</a>
+        <a class="{% if page_name == 'contributors' %}active{% endif %}" href="/repos/{{ selected_repository.id }}/contributors">Contributors</a>
+        {% endif %}
+      </nav>
+    </header>
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="sidebar-section">
+          <h2>Tracked Repositories</h2>
+          <ul class="repo-list">
+            {% for repository in repositories %}
+            <li>
+              <a href="/repos/{{ repository.id }}/overview" class="{% if selected_repository and selected_repository.id == repository.id %}selected{% endif %}">
+                <span>{{ repository.full_name }}</span>
+                <span class="status status-{{ repository.sync_status }}">{{ repository.sync_status }}</span>
+              </a>
+            </li>
+            {% else %}
+            <li class="muted">No repositories yet.</li>
+            {% endfor %}
+          </ul>
+        </div>
+        <div class="sidebar-section">
+          <h2>Add Repository</h2>
+          <form action="/repos" method="post" class="repo-form">
+            <label for="repo_url" class="muted">GitHub URL</label>
+            <input id="repo_url" name="repo_url" type="url" placeholder="https://github.com/owner/repo" required>
+            <button type="submit">Add</button>
+          </form>
+          {% if selected_repository %}
+          <form action="/repos/{{ selected_repository.id }}/sync" method="post" class="repo-form repo-form--sync">
+            <button type="submit">Sync {{ selected_repository.name }}</button>
+          </form>
+          {% endif %}
+        </div>
+      </aside>
+      <main class="content">
+        {% if error %}
+        <div class="banner banner-error">{{ error }}</div>
+        {% endif %}
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </body>
+</html>

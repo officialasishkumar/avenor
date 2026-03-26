@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>Contributions</h1>
+    <p class="lede">Changes, issues, and pull requests over time for {{ selected_repository.full_name }}.</p>
+  </div>
+</section>
+
+<section class="cards-grid cards-grid--charts">
+  <article class="card chart-card">
+    <h2>Contribution Activity</h2>
+    {{ activity_chart|safe }}
+  </article>
+  <article class="card chart-card">
+    <h2>Commit Domains</h2>
+    {{ domains_chart|safe }}
+  </article>
+</section>
+{% endblock %}

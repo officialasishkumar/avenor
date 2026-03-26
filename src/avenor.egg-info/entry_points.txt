@@ -1,0 +1,2 @@
+[console_scripts]
+avenor = avenor.cli:main

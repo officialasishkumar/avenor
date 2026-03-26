@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>{{ selected_repository.full_name }}</h1>
+    <p class="lede">{{ selected_repository.description or "No repository description available." }}</p>
+  </div>
+</section>
+
+<section class="cards-grid">
+  <article class="card stat-card">
+    <span class="label">Stars</span>
+    <strong>{{ selected_repository.stars }}</strong>
+  </article>
+  <article class="card stat-card">
+    <span class="label">Forks</span>
+    <strong>{{ selected_repository.forks }}</strong>
+  </article>
+  <article class="card stat-card">
+    <span class="label">Issues</span>
+    <strong>{{ overview.issues_count }}</strong>
+  </article>
+  <article class="card stat-card">
+    <span class="label">Pull Requests</span>
+    <strong>{{ overview.pull_requests_count }}</strong>
+  </article>
+  <article class="card stat-card">
+    <span class="label">Commits</span>
+    <strong>{{ overview.commits_count }}</strong>
+  </article>
+  <article class="card stat-card">
+    <span class="label">Contributors</span>
+    <strong>{{ overview.contributors_count }}</strong>
+  </article>
+</section>
+
+<section class="cards-grid cards-grid--charts">
+  <article class="card chart-card">
+    <h2>Activity</h2>
+    {{ activity_chart|safe }}
+  </article>
+  <article class="card chart-card">
+    <h2>Languages</h2>
+    {{ languages_chart|safe }}
+  </article>
+</section>
+
+<section class="card">
+  <h2>Recent Releases</h2>
+  <ul class="release-list">
+    {% for release in overview.recent_releases %}
+    <li>
+      <strong>{{ release.tag_name }}</strong>
+      <span class="muted">{{ release.published_at or "unpublished" }}</span>
+      {% if release.name %}<span>{{ release.name }}</span>{% endif %}
+    </li>
+    {% else %}
+    <li class="muted">No releases collected.</li>
+    {% endfor %}
+  </ul>
+</section>
+{% endblock %}
