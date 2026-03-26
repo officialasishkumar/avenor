@@ -282,6 +282,8 @@ def get_issue_staleness(session: Session, repository_id: int) -> list[dict[str, 
         if ref is None:
             buckets["> 90 days"] += 1
             continue
+        if ref.tzinfo is None:
+            ref = ref.replace(tzinfo=timezone.utc)
         age = (now - ref).days
         if age < 7:
             buckets["< 7 days"] += 1

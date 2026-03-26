@@ -427,8 +427,8 @@ def _horizontal_bar_chart(title: str, rows: list[dict[str, Any]]) -> str:
         marker_color=COLORS[0],
         marker_line=dict(width=0),
     )])
-    fig.update_layout(title=title, showlegend=False, **_LAYOUT_BASE,
-                      margin=dict(l=180, r=20, t=45, b=45))
+    layout = {**_LAYOUT_BASE, "margin": dict(l=180, r=20, t=45, b=45)}
+    fig.update_layout(title=title, showlegend=False, **layout)
     fig.update_xaxes(gridcolor="rgba(255,255,255,0.06)")
     fig.update_yaxes(gridcolor="rgba(255,255,255,0.06)")
     return pio.to_html(fig, include_plotlyjs=False, full_html=False)
