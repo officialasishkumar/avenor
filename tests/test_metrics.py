@@ -16,7 +16,7 @@ from avenor.services.repositories import add_repository
 def test_metrics_aggregate_repository_activity() -> None:
     init_db()
     with session_scope() as session:
-        repository = add_repository(session, "https://github.com/chaoss/augur")
+        repository = add_repository(session, "https://github.com/exampleorg/myproject")
         session.add(
             Issue(
                 repository_id=repository.id,

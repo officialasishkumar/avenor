@@ -1,4 +1,4 @@
-"""Analytics and metrics service — CHAOSS-inspired open-source health metrics."""
+"""Analytics and metrics service — open-source health metrics."""
 from __future__ import annotations
 
 from collections import Counter, defaultdict

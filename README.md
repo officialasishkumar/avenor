@@ -5,7 +5,7 @@
 ## Features
 
 - **Data Collection**: GitHub API + git log parsing with background task queue (Celery + Redis)
-- **20+ CHAOSS-Inspired Metrics**: Bus factor, contributor types, PR merge times, issue staleness, code churn, domain affiliation, and more
+- **20+ Health Metrics**: Bus factor, contributor types, PR merge times, issue staleness, code churn, domain affiliation, and more
 - **6-Page Analytics Dashboard**: Overview, Contributions, Contributors, Issues, Pull Requests, Codebase
 - **Interactive Plotly Charts**: Heatmaps, area charts, donut charts, horizontal bars, multi-line time series
 - **Full REST API**: JSON endpoints for all metrics at `/api/repos/{id}/*`

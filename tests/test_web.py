@@ -23,7 +23,7 @@ def test_add_repository_redirects_to_overview() -> None:
     client = TestClient(create_app())
     response = client.post(
         "/repos",
-        data={"repo_url": "https://github.com/chaoss/augur"},
+        data={"repo_url": "https://github.com/exampleorg/myproject"},
         follow_redirects=False,
     )
     assert response.status_code == 303

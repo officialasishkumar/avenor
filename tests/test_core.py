@@ -9,18 +9,18 @@ from avenor.services.repositories import add_repository, list_repositories, pars
 
 
 def test_parse_repository_url_normalizes_github_urls() -> None:
-    parsed = parse_repository_url("https://github.com/Chaoss/Augur.git")
+    parsed = parse_repository_url("https://github.com/ExampleOrg/MyProject.git")
     assert parsed.host == "github.com"
-    assert parsed.owner == "chaoss"
-    assert parsed.name == "Augur"
-    assert parsed.normalized_url == "https://github.com/chaoss/Augur"
+    assert parsed.owner == "exampleorg"
+    assert parsed.name == "MyProject"
+    assert parsed.normalized_url == "https://github.com/exampleorg/MyProject"
 
 
 def test_add_repository_deduplicates_by_full_name() -> None:
     init_db()
     with session_scope() as session:
-        first = add_repository(session, "https://github.com/chaoss/augur")
-        second = add_repository(session, "https://github.com/chaoss/augur.git")
+        first = add_repository(session, "https://github.com/exampleorg/myproject")
+        second = add_repository(session, "https://github.com/exampleorg/myproject.git")
         repositories = list_repositories(session)
 
     assert first.id == second.id
