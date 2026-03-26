@@ -87,30 +87,33 @@ def sync_repository(session: Session, repository: Repository) -> Repository:
     repository.sync_error = None
     session.flush()
 
-    github_job = _ensure_job(session, repository, "github")
     git_job = _ensure_job(session, repository, "git")
 
-    github_run = _start_job_run(session, github_job)
-    try:
-        github_snapshot = GitHubCollector(settings.github_token).collect(repository.url)
+    if repository.host == "github.com":
+        github_job = _ensure_job(session, repository, "github")
+        github_run = _start_job_run(session, github_job)
+        try:
+            github_snapshot = GitHubCollector(settings.github_token).collect(repository.url)
+            _replace_repository_children(session, repository)
+            _apply_github_snapshot(session, repository, github_snapshot)
+            _finish_job_run(
+                github_job,
+                github_run,
+                status="ready",
+                records_written=(
+                    len(github_snapshot.issues)
+                    + len(github_snapshot.pull_requests)
+                    + len(github_snapshot.releases)
+                    + len(github_snapshot.contributors)
+                ),
+            )
+        except Exception as exc:
+            _finish_job_run(github_job, github_run, status="failed", error=str(exc))
+            repository.sync_status = "failed"
+            repository.sync_error = str(exc)
+            raise
+    else:
         _replace_repository_children(session, repository)
-        _apply_github_snapshot(session, repository, github_snapshot)
-        _finish_job_run(
-            github_job,
-            github_run,
-            status="ready",
-            records_written=(
-                len(github_snapshot.issues)
-                + len(github_snapshot.pull_requests)
-                + len(github_snapshot.releases)
-                + len(github_snapshot.contributors)
-            ),
-        )
-    except Exception as exc:
-        _finish_job_run(github_job, github_run, status="failed", error=str(exc))
-        repository.sync_status = "failed"
-        repository.sync_error = str(exc)
-        raise
 
     git_run = _start_job_run(session, git_job)
     try:

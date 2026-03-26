@@ -10,32 +10,37 @@ Goals:
 - one CLI
 - no Redis, RabbitMQ, Postgres sidecars required for local use
 - git-native collection with optional GitHub enrichment
+- local git repository support
 - a familiar multi-page analytics UI
 
 ## Quick Start
 
 ```bash
-uv run avenor demo
-uv run avenor serve --port 8051
+python3 -m venv .venv
+.venv/bin/pip install -e '.[dev]'
+.venv/bin/avenor init-db
+.venv/bin/avenor add-repo ../8knot-source
+.venv/bin/avenor sync --repo-id 1
+.venv/bin/avenor serve
 ```
 
-The `demo` command imports and syncs local git repositories from the current
-workspace when available. The UI then runs at `http://127.0.0.1:8051`.
+`add-repo` accepts either a GitHub repository URL or a local git repository path.
+
+If you already have `uv` installed, the same workflow can be run with `uv run ...`.
 
 ## Core Commands
 
 ```bash
-uv run avenor init-db
-uv run avenor add-project ../augur --group Workspace
-uv run avenor add-project https://github.com/chaoss/augur.git --group Workspace
-uv run avenor sync --all
-uv run avenor serve
-uv run pytest
+.venv/bin/avenor init-db
+.venv/bin/avenor add-repo ../8knot-source
+.venv/bin/avenor add-repo https://github.com/chaoss/augur.git
+.venv/bin/avenor sync --repo-id 1
+.venv/bin/avenor serve
+.venv/bin/pytest
 ```
 
 ## Environment
 
 - `AVENOR_DATA_DIR`: runtime directory. Defaults to `./.avenor`
-- `AVENOR_DB_URL`: override the SQLite database URL
+- `AVENOR_DATABASE_URL`: override the SQLite database URL
 - `AVENOR_GITHUB_TOKEN`: optional GitHub token for issues, PRs, releases, and repo metadata
-

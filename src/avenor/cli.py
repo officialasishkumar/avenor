@@ -22,7 +22,7 @@ def init_db_command() -> None:
 
 @app.command("add-repo")
 def add_repo_command(url: str) -> None:
-    """Add a GitHub repository URL to the local catalog."""
+    """Add a GitHub repository URL or local git path to the catalog."""
     init_db()
     with session_scope() as session:
         repository = add_repository(session, url)

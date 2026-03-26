@@ -23,6 +23,7 @@ def _sort_bucket_items(items: dict[str, int]) -> list[dict[str, Any]]:
 
 
 def get_overview(session: Session, repository_id: int) -> dict[str, Any]:
+    session.flush()
     repository = session.get(Repository, repository_id)
     if repository is None:
         raise ValueError(f"Repository {repository_id} does not exist.")
@@ -46,6 +47,7 @@ def get_overview(session: Session, repository_id: int) -> dict[str, Any]:
 
 
 def get_activity_series(session: Session, repository_id: int, period: str = "month") -> dict[str, list[dict[str, Any]]]:
+    session.flush()
     commits = session.scalars(select(Commit).where(Commit.repository_id == repository_id)).all()
     issues = session.scalars(select(Issue).where(Issue.repository_id == repository_id)).all()
     pull_requests = session.scalars(select(PullRequest).where(PullRequest.repository_id == repository_id)).all()
@@ -69,6 +71,7 @@ def get_activity_series(session: Session, repository_id: int, period: str = "mon
 
 
 def get_new_contributors_series(session: Session, repository_id: int, period: str = "month") -> list[dict[str, Any]]:
+    session.flush()
     contributors = session.scalars(select(Contributor).where(Contributor.repository_id == repository_id)).all()
     buckets: dict[str, int] = defaultdict(int)
     for contributor in contributors:
@@ -77,6 +80,7 @@ def get_new_contributors_series(session: Session, repository_id: int, period: st
 
 
 def get_top_contributors(session: Session, repository_id: int, limit: int = 10) -> list[dict[str, Any]]:
+    session.flush()
     contributors = session.scalars(
         select(Contributor).where(Contributor.repository_id == repository_id)
     ).all()
@@ -91,6 +95,7 @@ def get_top_contributors(session: Session, repository_id: int, limit: int = 10) 
 
 
 def get_language_breakdown(session: Session, repository_id: int) -> list[dict[str, Any]]:
+    session.flush()
     repository = session.get(Repository, repository_id)
     if repository is None or not repository.languages:
         return []
@@ -99,6 +104,7 @@ def get_language_breakdown(session: Session, repository_id: int) -> list[dict[st
 
 
 def get_commit_domain_breakdown(session: Session, repository_id: int, limit: int = 10) -> list[dict[str, Any]]:
+    session.flush()
     commits = session.scalars(select(Commit).where(Commit.repository_id == repository_id)).all()
     counts: Counter[str] = Counter()
     for commit in commits:
@@ -109,6 +115,7 @@ def get_commit_domain_breakdown(session: Session, repository_id: int, limit: int
 
 
 def get_recent_releases(session: Session, repository_id: int, limit: int = 8) -> list[Release]:
+    session.flush()
     releases = session.scalars(select(Release).where(Release.repository_id == repository_id)).all()
     floor = datetime.min.replace(tzinfo=timezone.utc)
     ordered = sorted(releases, key=lambda release: release.published_at or floor, reverse=True)

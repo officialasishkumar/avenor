@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
+from pathlib import Path
+import re
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -31,9 +32,15 @@ class ParsedRepositoryUrl:
 
 def parse_repository_url(url: str) -> ParsedRepositoryUrl:
     candidate = url.strip()
+    local_path = Path(candidate).expanduser()
+    if local_path.exists() and local_path.is_dir() and (local_path / ".git").exists():
+        owner = local_path.parent.name or "workspace"
+        name = local_path.name
+        return ParsedRepositoryUrl(host="local", owner=owner, name=name)
+
     match = GITHUB_REPO_RE.match(candidate)
     if not match:
-        raise ValueError("Only GitHub repository URLs are supported in the current build.")
+        raise ValueError("Use a GitHub repository URL or a local git repository path.")
     return ParsedRepositoryUrl(
         host="github.com",
         owner=match.group("owner").lower(),
@@ -60,12 +67,13 @@ def add_repository(session: Session, url: str) -> Repository:
     if existing:
         return existing
 
+    normalized_url = parsed.normalized_url if parsed.host != "local" else str(Path(url).expanduser().resolve())
     repository = Repository(
         host=parsed.host,
         owner=parsed.owner,
         name=parsed.name,
         full_name=parsed.full_name,
-        url=parsed.normalized_url,
+        url=normalized_url,
     )
     session.add(repository)
     session.flush()

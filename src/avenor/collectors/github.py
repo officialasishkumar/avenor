@@ -23,6 +23,7 @@ class GitHubCollector:
     def __init__(self, token: str | None) -> None:
         self.token = token
         self.base_url = "https://api.github.com"
+        self.default_cap = 250 if token else 25
 
     def collect(self, url: str) -> GitHubRepositorySnapshot:
         parsed = parse_repository_url(url)
@@ -36,23 +37,39 @@ class GitHubCollector:
             languages = self._request_json(client, f"/repos/{parsed.full_name}/languages")
             contributors = [
                 self._map_contributor(item)
-                for item in self._paginate(client, f"/repos/{parsed.full_name}/contributors?per_page=100")
+                for item in self._paginate(
+                    client,
+                    f"/repos/{parsed.full_name}/contributors?per_page=100",
+                    limit=self.default_cap,
+                )
             ]
 
             issues = [
                 self._map_issue(item)
-                for item in self._paginate(client, f"/repos/{parsed.full_name}/issues?state=all&per_page=100")
+                for item in self._paginate(
+                    client,
+                    f"/repos/{parsed.full_name}/issues?state=all&per_page=100",
+                    limit=self.default_cap,
+                )
                 if "pull_request" not in item
             ]
 
             pull_requests: list[dict[str, Any]] = []
-            for item in self._paginate(client, f"/repos/{parsed.full_name}/pulls?state=all&per_page=100"):
+            for item in self._paginate(
+                client,
+                f"/repos/{parsed.full_name}/pulls?state=all&per_page=100",
+                limit=self.default_cap,
+            ):
                 detailed = self._request_json(client, item["url"])
                 pull_requests.append(self._map_pull_request(detailed))
 
             releases = [
                 self._map_release(item)
-                for item in self._paginate(client, f"/repos/{parsed.full_name}/releases?per_page=100")
+                for item in self._paginate(
+                    client,
+                    f"/repos/{parsed.full_name}/releases?per_page=100",
+                    limit=self.default_cap,
+                )
             ]
 
         return GitHubRepositorySnapshot(
@@ -81,7 +98,7 @@ class GitHubCollector:
         response.raise_for_status()
         return response.json()
 
-    def _paginate(self, client: httpx.Client, initial_path: str) -> list[dict[str, Any]]:
+    def _paginate(self, client: httpx.Client, initial_path: str, limit: int | None = None) -> list[dict[str, Any]]:
         results: list[dict[str, Any]] = []
         next_url: str | None = initial_path
 
@@ -95,6 +112,8 @@ class GitHubCollector:
                 raise RuntimeError(f"Expected list payload from GitHub, got {type(payload)!r}")
 
             results.extend(payload)
+            if limit is not None and len(results) >= limit:
+                return results[:limit]
             next_url = response.links.get("next", {}).get("url")
         return results
 

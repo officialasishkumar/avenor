@@ -26,13 +26,10 @@ from avenor.services.sync import sync_repository
 def create_app() -> FastAPI:
     base_dir = Path(__file__).resolve().parent
     templates = Jinja2Templates(directory=str(base_dir / "templates"))
+    init_db()
 
     app = FastAPI(title="Avenor")
     app.mount("/static", StaticFiles(directory=str(base_dir / "static")), name="static")
-
-    @app.on_event("startup")
-    def startup() -> None:
-        init_db()
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
@@ -57,8 +54,9 @@ def create_app() -> FastAPI:
         with session_scope() as session:
             repositories = list_repositories(session)
         return templates.TemplateResponse(
-            "home.html",
-            {
+            request=request,
+            name="home.html",
+            context={
                 "request": request,
                 "repositories": repositories,
                 "selected_repository": None,
@@ -104,8 +102,9 @@ def create_app() -> FastAPI:
             repositories = list_repositories(session)
 
         return templates.TemplateResponse(
-            "repo_overview.html",
-            {
+            request=request,
+            name="repo_overview.html",
+            context={
                 "request": request,
                 "repositories": repositories,
                 "selected_repository": repository,
@@ -135,8 +134,9 @@ def create_app() -> FastAPI:
             repositories = list_repositories(session)
 
         return templates.TemplateResponse(
-            "repo_contributions.html",
-            {
+            request=request,
+            name="repo_contributions.html",
+            context={
                 "request": request,
                 "repositories": repositories,
                 "selected_repository": repository,
@@ -165,8 +165,9 @@ def create_app() -> FastAPI:
             repositories = list_repositories(session)
 
         return templates.TemplateResponse(
-            "repo_contributors.html",
-            {
+            request=request,
+            name="repo_contributors.html",
+            context={
                 "request": request,
                 "repositories": repositories,
                 "selected_repository": repository,
