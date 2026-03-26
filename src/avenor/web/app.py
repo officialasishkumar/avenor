@@ -305,6 +305,7 @@ def create_app() -> FastAPI:
             "selected_repository": selected_repo,
             "page_name": page_name,
             "page_title": page_title,
+            "github_token_configured": bool(get_github_token()),
         }
 
     @app.get("/")
@@ -327,6 +328,7 @@ def create_app() -> FastAPI:
                 "error": error,
                 "comparison": comparison,
                 "comparison_chart": _comparison_chart(comparison) if comparison else "",
+                "github_token_configured": bool(get_github_token()),
             },
         )
 

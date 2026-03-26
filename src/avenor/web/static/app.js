@@ -6,6 +6,21 @@
   'use strict';
 
   // -----------------------------------------------------------------------
+  // Sidebar toggle (desktop: collapse, mobile: show/hide)
+  // -----------------------------------------------------------------------
+
+  function toggleSidebar() {
+    const isMobile = window.innerWidth <= 900;
+    if (isMobile) {
+      document.body.classList.toggle('sidebar-open');
+    } else {
+      document.body.classList.toggle('sidebar-collapsed');
+    }
+  }
+
+  window.toggleSidebar = toggleSidebar;
+
+  // -----------------------------------------------------------------------
   // Toast notification system
   // -----------------------------------------------------------------------
 
@@ -235,17 +250,30 @@
   // -----------------------------------------------------------------------
 
   function initAddRepoForm() {
+    // Sidebar form
     const form = document.getElementById('add-repo-form');
-    if (!form) return;
+    if (form) {
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const input = document.getElementById('add-repo-input');
+        const autoSync = document.getElementById('auto-sync-toggle');
+        if (input && input.value.trim()) {
+          addRepo(input.value.trim(), autoSync ? autoSync.checked : true);
+        }
+      });
+    }
 
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const input = document.getElementById('add-repo-input');
-      const autoSync = document.getElementById('auto-sync-toggle');
-      if (input && input.value.trim()) {
-        addRepo(input.value.trim(), autoSync ? autoSync.checked : true);
-      }
-    });
+    // Hero form (home page)
+    const heroForm = document.getElementById('hero-add-repo-form');
+    if (heroForm) {
+      heroForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const input = document.getElementById('hero-add-repo-input');
+        if (input && input.value.trim()) {
+          addRepo(input.value.trim(), true);
+        }
+      });
+    }
   }
 
   // -----------------------------------------------------------------------

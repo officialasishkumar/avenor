@@ -7,8 +7,18 @@
     <h1>One project. One database.<br>One dashboard.</h1>
     <p class="lede">
       Track commits, contributors, issues, and pull requests across all your repositories.
-      Add a GitHub URL to get started &mdash; your analytics dashboard will be ready in seconds.
+      Add a GitHub URL or type <strong>owner/repo</strong> to get started.
     </p>
+
+    <!-- Inline add form — prominent on the home page -->
+    <form id="hero-add-repo-form" class="hero-add-form">
+      <input id="hero-add-repo-input" type="text" placeholder="owner/repo or https://github.com/owner/repo" required autocomplete="off">
+      <button type="submit" class="btn btn-primary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        Add Repository
+      </button>
+    </form>
+
     <div class="hero-stats">
       <div class="hero-stat">
         <span class="hero-stat-value">{{ repositories|length }}</span>
@@ -60,9 +70,17 @@
 {% endif %}
 
 <section class="section">
-  <div class="section-header">
-    <h2>Tracked Repositories</h2>
-    <p class="muted">Select a repository to explore its analytics dashboard</p>
+  <div class="section-header section-header--flex">
+    <div>
+      <h2>Tracked Repositories</h2>
+      <p class="muted">Select a repository to explore its analytics dashboard</p>
+    </div>
+    {% if repositories|length > 0 %}
+    <button id="sync-all-btn" class="btn btn-sync" onclick="syncAll()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+      Sync All
+    </button>
+    {% endif %}
   </div>
   <div class="cards-grid cards-grid--repos">
     {% for repository in repositories %}
@@ -99,8 +117,11 @@
       <div class="empty-state-icon">
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
       </div>
-      <h3>Get Started</h3>
-      <p class="muted">Add a GitHub repository URL from the sidebar to begin tracking its analytics.</p>
+      <h3>No repositories yet</h3>
+      <p class="muted">Use the form above or the sidebar to add your first GitHub repository.</p>
+      <p class="muted" style="margin-top: 0.5rem;">
+        Tip: Configure your <a href="/settings" class="link">GitHub token</a> for faster syncing (5,000 req/hr vs 60).
+      </p>
     </div>
     {% endfor %}
   </div>
