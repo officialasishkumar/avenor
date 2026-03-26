@@ -14,6 +14,9 @@
 - **CLI**: `avenor quickstart <url>` to go from zero to dashboard in one command
 - **Async UI**: Toast notifications, background sync, sidebar search, mobile navigation
 - **Time Period Controls**: Switch between daily, weekly, and monthly chart granularity
+- **Settings Page**: Configure GitHub token and view system info directly from the UI
+- **Sync All**: One-click to sync every tracked repository at once
+- **Shorthand Input**: Type `owner/repo` instead of full URLs when adding repositories
 
 ## Quick Start (Local)
 
@@ -36,11 +39,17 @@ avenor serve
 
 ### Optional: Set a GitHub token for higher rate limits
 
+You can configure this in two ways:
+
+**Option A — From the UI (recommended):**
+Open http://127.0.0.1:8000/settings and paste your token. It's saved locally in `.avenor/settings.json`.
+
+**Option B — Via environment variable:**
 ```bash
 export AVENOR_GITHUB_TOKEN=ghp_your_token_here
 ```
 
-Without a token you're limited to 60 GitHub API requests/hour. With a token: 5,000/hour.
+Without a token you're limited to 60 GitHub API requests/hour. With a token: 5,000/hour. The sidebar shows a warning if no token is configured.
 
 ## Quick Start (Docker)
 
@@ -72,10 +81,10 @@ This starts: web app (port 8000), Celery worker, Redis, PostgreSQL, and Flower t
 ## Using the Web UI
 
 ### Adding a Repository
-1. Paste a GitHub URL in the sidebar input (e.g., `https://github.com/owner/repo`)
-2. Check "Auto-sync after adding" (enabled by default)
-3. Click "Add & Track"
-4. The repository syncs in the background — you'll see a toast notification when it's done
+1. Use the form on the home page or in the sidebar
+2. Type a shorthand like `owner/repo` or a full URL like `https://github.com/owner/repo`
+3. Auto-sync is enabled by default — the repository syncs in the background
+4. You'll see toast notifications for progress and completion
 5. The page redirects to the repository's Overview page
 
 ### Navigating Pages
@@ -91,8 +100,13 @@ Every chart page has a time granularity selector: **Daily**, **Weekly**, or **Mo
 
 ### Syncing Data
 - Click the **Sync** button in the top-right to refresh a repository's data
+- Click **Sync All** on the home page to sync every tracked repository at once
 - If Celery is running, sync happens in the background with toast notifications
 - If Celery is not running, sync runs inline (the page will take a moment to respond)
+
+### Settings
+- Open the **Settings** page (gear icon in the sidebar) to configure your GitHub token
+- The settings page also shows system information (data directory, database, Redis URL)
 
 ### Deleting a Repository
 - Click the trash icon in the top-right when viewing a repository
@@ -112,6 +126,9 @@ Every chart page has a time granularity selector: **Daily**, **Weekly**, or **Mo
 | `DELETE` | `/api/repos/{id}` | Delete a repository and all its data |
 | `GET` | `/api/repos/{id}/status` | Get sync status, errors, last synced time |
 | `POST` | `/api/repos/{id}/sync` | Trigger a sync (background or inline) |
+| `POST` | `/api/repos/sync-all` | Sync all tracked repositories at once |
+| `GET` | `/api/settings` | Get current settings (token status, data dir) |
+| `POST` | `/api/settings` | Save settings (JSON: `{"github_token": "..."}`) |
 
 ### Metrics
 
@@ -168,10 +185,10 @@ Every chart page has a time granularity selector: **Daily**, **Weekly**, or **Mo
 
 **Problem**: You see `GitHub API rate limit exceeded. Set AVENOR_GITHUB_TOKEN and retry.`
 
-**Fix**: Create a GitHub personal access token and set it:
-```bash
-export AVENOR_GITHUB_TOKEN=ghp_your_token_here
-```
+**Fix**: Configure a GitHub personal access token using one of these methods:
+1. **From the UI**: Go to http://localhost:8000/settings and paste your token
+2. **From the CLI**: `export AVENOR_GITHUB_TOKEN=ghp_your_token_here`
+
 Without a token, GitHub allows only 60 API requests per hour. With a token: 5,000/hour. For large repositories you need a token.
 
 To create a token: GitHub Settings > Developer settings > Personal access tokens > Generate new token. No special scopes are needed for public repos.
@@ -273,6 +290,188 @@ git --version
 ```
 
 For private repositories, make sure your SSH keys or git credentials are configured.
+
+## Hosting & Deployment Guide
+
+### Option 1: Docker Compose (recommended for production)
+
+The simplest way to deploy Avenor with all services:
+
+```bash
+# Clone the repository
+git clone https://github.com/officialasishkumar/avenor.git
+cd avenor
+
+# Set your GitHub token (optional but recommended)
+export AVENOR_GITHUB_TOKEN=ghp_your_token_here
+
+# Start all services
+docker compose up -d
+```
+
+This starts 5 services:
+
+| Service | Port | Description |
+|---------|------|-------------|
+| **app** | 8000 | Web dashboard + REST API |
+| **worker** | — | Celery background worker for async sync |
+| **postgres** | 5432 | PostgreSQL database |
+| **redis** | 6379 | Message broker for Celery |
+| **flower** | 5555 | Celery task monitoring UI |
+
+**Updating:**
+```bash
+git pull
+docker compose build
+docker compose up -d
+```
+
+**Persistent data:** Docker volumes (`pg-data`, `app-data`, `app-repos`, `redis-data`) survive container restarts. To reset everything: `docker compose down -v`.
+
+### Option 2: Single server with systemd
+
+For a bare-metal or VM deployment without Docker:
+
+```bash
+# 1. Install system dependencies
+sudo apt update && sudo apt install -y python3.12 python3.12-venv git redis-server postgresql
+
+# 2. Create a dedicated user
+sudo useradd -m -s /bin/bash avenor
+sudo su - avenor
+
+# 3. Clone and install
+git clone https://github.com/officialasishkumar/avenor.git
+cd avenor
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+
+# 4. Set up PostgreSQL
+sudo -u postgres createuser avenor
+sudo -u postgres createdb -O avenor avenor
+
+# 5. Configure environment
+cat > ~/.avenor.env << 'EOF'
+AVENOR_DATABASE_URL=postgresql+psycopg2://avenor@localhost/avenor
+AVENOR_REDIS_URL=redis://localhost:6379/0
+AVENOR_HOST=0.0.0.0
+AVENOR_PORT=8000
+AVENOR_DATA_DIR=/home/avenor/avenor/.avenor
+AVENOR_SECRET_KEY=change-this-to-a-random-string
+# AVENOR_GITHUB_TOKEN=ghp_your_token_here
+EOF
+
+# 6. Initialize database
+source ~/.avenor.env
+avenor init-db
+```
+
+Create systemd service files:
+
+**/etc/systemd/system/avenor-web.service:**
+```ini
+[Unit]
+Description=Avenor Web Dashboard
+After=network.target postgresql.service redis.service
+
+[Service]
+User=avenor
+WorkingDirectory=/home/avenor/avenor
+EnvironmentFile=/home/avenor/.avenor.env
+ExecStart=/home/avenor/avenor/.venv/bin/avenor serve --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+**/etc/systemd/system/avenor-worker.service:**
+```ini
+[Unit]
+Description=Avenor Celery Worker
+After=network.target postgresql.service redis.service
+
+[Service]
+User=avenor
+WorkingDirectory=/home/avenor/avenor
+EnvironmentFile=/home/avenor/.avenor.env
+ExecStart=/home/avenor/avenor/.venv/bin/celery -A avenor.tasks worker -l info -Q default,collection -c 2
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now avenor-web avenor-worker
+```
+
+### Option 3: Deploy behind a reverse proxy (Nginx)
+
+For production, put Avenor behind Nginx with HTTPS:
+
+```nginx
+server {
+    listen 80;
+    server_name analytics.example.com;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name analytics.example.com;
+
+    ssl_certificate     /etc/letsencrypt/live/analytics.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/analytics.example.com/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Optional: expose Flower task monitor on a subpath
+    location /flower/ {
+        proxy_pass http://127.0.0.1:5555/;
+        proxy_set_header Host $host;
+    }
+}
+```
+
+```bash
+# Get a free SSL certificate
+sudo certbot --nginx -d analytics.example.com
+```
+
+### Option 4: Lightweight (SQLite, no Redis)
+
+For personal use or small teams where you don't need background sync:
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e .
+avenor init-db
+avenor serve --host 0.0.0.0 --port 8000
+```
+
+This runs with SQLite and no Celery. Sync happens inline when you click the Sync button (the request blocks until done). Good for tracking a handful of repositories.
+
+### Production checklist
+
+- [ ] Set `AVENOR_SECRET_KEY` to a random string (not the default)
+- [ ] Configure a GitHub token (via UI Settings page or `AVENOR_GITHUB_TOKEN`)
+- [ ] Use PostgreSQL instead of SQLite for concurrent access
+- [ ] Set up Redis + Celery worker for background sync
+- [ ] Put behind a reverse proxy (Nginx/Caddy) with HTTPS
+- [ ] Set `AVENOR_HOST=0.0.0.0` to listen on all interfaces
+- [ ] Back up your PostgreSQL database regularly
+- [ ] Monitor with Flower (port 5555) if using Celery
 
 ## Running Tests
 
