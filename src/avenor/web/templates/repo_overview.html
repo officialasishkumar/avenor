@@ -2,62 +2,123 @@
 
 {% block content %}
 <section class="page-header">
-  <div>
-    <h1>{{ selected_repository.full_name }}</h1>
-    <p class="lede">{{ selected_repository.description or "No repository description available." }}</p>
+  <div class="page-header-content">
+    <div>
+      <div class="page-header-badge">Repository Overview</div>
+      <h1>{{ selected_repository.full_name }}</h1>
+      <p class="lede">{{ selected_repository.description or "No description available." }}</p>
+    </div>
+    {% if selected_repository.url %}
+    <a href="{{ selected_repository.url }}" target="_blank" rel="noopener" class="btn btn-outline">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"/></svg>
+      View on GitHub
+    </a>
+    {% endif %}
   </div>
 </section>
 
-<section class="cards-grid">
-  <article class="card stat-card">
-    <span class="label">Stars</span>
-    <strong>{{ selected_repository.stars }}</strong>
-  </article>
-  <article class="card stat-card">
-    <span class="label">Forks</span>
-    <strong>{{ selected_repository.forks }}</strong>
-  </article>
-  <article class="card stat-card">
-    <span class="label">Issues</span>
-    <strong>{{ overview.issues_count }}</strong>
-  </article>
-  <article class="card stat-card">
-    <span class="label">Pull Requests</span>
-    <strong>{{ overview.pull_requests_count }}</strong>
-  </article>
-  <article class="card stat-card">
-    <span class="label">Commits</span>
-    <strong>{{ overview.commits_count }}</strong>
-  </article>
-  <article class="card stat-card">
-    <span class="label">Contributors</span>
-    <strong>{{ overview.contributors_count }}</strong>
-  </article>
-</section>
+<!-- Key Stats -->
+<div class="stats-row">
+  <div class="stat-card stat-card--accent">
+    <div class="stat-icon">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94"/></svg>
+    </div>
+    <div class="stat-value">{{ "{:,}".format(overview.commits_count) }}</div>
+    <div class="stat-label">Commits</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6M23 11h-6"/></svg>
+    </div>
+    <div class="stat-value">{{ "{:,}".format(overview.contributors_count) }}</div>
+    <div class="stat-label">Contributors</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7M6 9v12"/></svg>
+    </div>
+    <div class="stat-value">{{ "{:,}".format(overview.pull_requests_count) }}</div>
+    <div class="stat-label">Pull Requests</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+    </div>
+    <div class="stat-value">{{ "{:,}".format(overview.issues_count) }}</div>
+    <div class="stat-label">Issues</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+    </div>
+    <div class="stat-value">{{ "{:,}".format(selected_repository.stars) }}</div>
+    <div class="stat-label">Stars</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 18V6l10 6-10 6z"/></svg>
+    </div>
+    <div class="stat-value">{{ "{:,}".format(selected_repository.forks) }}</div>
+    <div class="stat-label">Forks</div>
+  </div>
+</div>
 
-<section class="cards-grid cards-grid--charts">
-  <article class="card chart-card">
-    <h2>Activity</h2>
+<!-- Health indicators -->
+<div class="stats-row stats-row--compact">
+  <div class="health-card">
+    <span class="health-label">Merge Rate</span>
+    <span class="health-value {% if overview.merge_rate > 70 %}health-good{% elif overview.merge_rate > 40 %}health-ok{% else %}health-warn{% endif %}">{{ overview.merge_rate }}%</span>
+  </div>
+  <div class="health-card">
+    <span class="health-label">Bus Factor</span>
+    <span class="health-value {% if bus_factor.bus_factor > 3 %}health-good{% elif bus_factor.bus_factor > 1 %}health-ok{% else %}health-warn{% endif %}">{{ bus_factor.bus_factor }}</span>
+  </div>
+  <div class="health-card">
+    <span class="health-label">Open Issues</span>
+    <span class="health-value">{{ "{:,}".format(overview.open_issues) }}</span>
+  </div>
+  <div class="health-card">
+    <span class="health-label">Open PRs</span>
+    <span class="health-value">{{ "{:,}".format(overview.open_prs) }}</span>
+  </div>
+  <div class="health-card">
+    <span class="health-label">Releases</span>
+    <span class="health-value">{{ "{:,}".format(overview.releases_count) }}</span>
+  </div>
+</div>
+
+<!-- Charts -->
+<div class="charts-grid">
+  <div class="chart-card chart-card--wide">
     {{ activity_chart|safe }}
-  </article>
-  <article class="card chart-card">
-    <h2>Languages</h2>
-    {{ languages_chart|safe }}
-  </article>
-</section>
+  </div>
+</div>
 
-<section class="card">
-  <h2>Recent Releases</h2>
-  <ul class="release-list">
+<div class="charts-grid charts-grid--2col">
+  <div class="chart-card">
+    {{ languages_chart|safe }}
+  </div>
+  <div class="chart-card">
+    {{ contributor_types_chart|safe }}
+  </div>
+</div>
+
+<!-- Recent Releases -->
+{% if overview.recent_releases %}
+<section class="section">
+  <div class="section-header">
+    <h2>Recent Releases</h2>
+  </div>
+  <div class="releases-grid">
     {% for release in overview.recent_releases %}
-    <li>
-      <strong>{{ release.tag_name }}</strong>
-      <span class="muted">{{ release.published_at or "unpublished" }}</span>
-      {% if release.name %}<span>{{ release.name }}</span>{% endif %}
-    </li>
-    {% else %}
-    <li class="muted">No releases collected.</li>
+    <div class="release-card">
+      <div class="release-tag">{{ release.tag_name }}</div>
+      <div class="release-name">{{ release.name or release.tag_name }}</div>
+      <div class="release-date muted">{{ release.published_at.strftime('%Y-%m-%d') if release.published_at else "unpublished" }}</div>
+      {% if release.prerelease %}<span class="badge badge-warn">pre-release</span>{% endif %}
+    </div>
     {% endfor %}
-  </ul>
+  </div>
 </section>
+{% endif %}
 {% endblock %}

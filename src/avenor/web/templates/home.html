@@ -2,33 +2,107 @@
 
 {% block content %}
 <section class="hero">
-  <div>
-    <h1>One project. One database. One dashboard.</h1>
+  <div class="hero-content">
+    <div class="hero-badge">Open Source Analytics</div>
+    <h1>One project. One database.<br>One dashboard.</h1>
     <p class="lede">
-      Avenor collapses collection, storage, API, and visualization into a single local workflow.
+      Avenor combines the data collection power of <strong>Augur</strong> with the rich visualizations of <strong>8knot</strong>
+      into a single, unified analytics platform. Track commits, contributors, issues, and pull requests across all your repositories.
     </p>
+    <div class="hero-stats">
+      <div class="hero-stat">
+        <span class="hero-stat-value">{{ repositories|length }}</span>
+        <span class="hero-stat-label">Repositories</span>
+      </div>
+    </div>
   </div>
 </section>
 
-<section class="cards-grid cards-grid--repos">
-  {% for repository in repositories %}
-  <article class="card">
-    <div class="card-header">
-      <h2><a href="/repos/{{ repository.id }}/overview">{{ repository.full_name }}</a></h2>
-      <span class="status status-{{ repository.sync_status }}">{{ repository.sync_status }}</span>
+{% if comparison and comparison|length >= 2 %}
+<section class="section">
+  <div class="section-header">
+    <h2>Repository Comparison</h2>
+    <p class="muted">Side-by-side metrics across all tracked repositories</p>
+  </div>
+  <div class="chart-card">
+    {{ comparison_chart|safe }}
+  </div>
+
+  <div class="comparison-table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Repository</th>
+          <th>Commits</th>
+          <th>Pull Requests</th>
+          <th>Issues</th>
+          <th>Contributors</th>
+          <th>Stars</th>
+          <th>Forks</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in comparison %}
+        <tr>
+          <td><a href="/repos/{{ row.id }}/overview" class="link">{{ row.full_name }}</a></td>
+          <td>{{ "{:,}".format(row.commits) }}</td>
+          <td>{{ "{:,}".format(row.pull_requests) }}</td>
+          <td>{{ "{:,}".format(row.issues) }}</td>
+          <td>{{ "{:,}".format(row.contributors) }}</td>
+          <td>{{ "{:,}".format(row.stars) }}</td>
+          <td>{{ "{:,}".format(row.forks) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+<section class="section">
+  <div class="section-header">
+    <h2>Tracked Repositories</h2>
+    <p class="muted">Select a repository to explore its analytics dashboard</p>
+  </div>
+  <div class="cards-grid cards-grid--repos">
+    {% for repository in repositories %}
+    <a href="/repos/{{ repository.id }}/overview" class="repo-card">
+      <div class="repo-card-header">
+        <h3>{{ repository.full_name }}</h3>
+        <span class="status status-{{ repository.sync_status }}">{{ repository.sync_status }}</span>
+      </div>
+      <p class="repo-card-desc">{{ repository.description or "No description available." }}</p>
+      <div class="repo-card-stats">
+        <span class="repo-card-stat">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          {{ "{:,}".format(repository.stars) }}
+        </span>
+        <span class="repo-card-stat">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 18V6l10 6-10 6z"/></svg>
+          {{ "{:,}".format(repository.forks) }}
+        </span>
+        {% if repository.primary_language %}
+        <span class="repo-card-stat">
+          <span class="lang-dot"></span>
+          {{ repository.primary_language }}
+        </span>
+        {% endif %}
+      </div>
+      {% if repository.last_synced_at %}
+      <div class="repo-card-footer muted">
+        Last synced: {{ repository.last_synced_at.strftime('%Y-%m-%d %H:%M') }}
+      </div>
+      {% endif %}
+    </a>
+    {% else %}
+    <div class="empty-state">
+      <div class="empty-state-icon">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
+      </div>
+      <h3>Get Started</h3>
+      <p class="muted">Add a GitHub repository URL from the sidebar to begin tracking its analytics.</p>
     </div>
-    <p class="muted">{{ repository.description or "No description yet." }}</p>
-    <div class="meta-row">
-      <span>Stars {{ repository.stars }}</span>
-      <span>Forks {{ repository.forks }}</span>
-      <span>Language {{ repository.primary_language or "Unknown" }}</span>
-    </div>
-  </article>
-  {% else %}
-  <article class="card empty-state">
-    <h2>Start with a repository</h2>
-    <p class="muted">Add a GitHub URL from the sidebar, then synchronize it to populate the dashboard.</p>
-  </article>
-  {% endfor %}
+    {% endfor %}
+  </div>
 </section>
 {% endblock %}

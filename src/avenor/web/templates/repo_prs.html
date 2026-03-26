@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header">
+  <div class="page-header-content">
+    <div>
+      <div class="page-header-badge">Pull Requests</div>
+      <h1>Pull Request Analytics</h1>
+      <p class="lede">PR activity, merge times, and size distribution for {{ selected_repository.full_name }}.</p>
+    </div>
+  </div>
+</section>
+
+<div class="stats-row">
+  <div class="stat-card stat-card--accent">
+    <div class="stat-value">{{ "{:,}".format(stats.total) }}</div>
+    <div class="stat-label">Total PRs</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ "{:,}".format(stats.open) }}</div>
+    <div class="stat-label">Open</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ "{:,}".format(stats.merged) }}</div>
+    <div class="stat-label">Merged</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value {% if stats.merge_rate > 70 %}health-good{% elif stats.merge_rate > 40 %}health-ok{% else %}health-warn{% endif %}">{{ stats.merge_rate }}%</div>
+    <div class="stat-label">Merge Rate</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ stats.median_merge_time_hours }}h</div>
+    <div class="stat-label">Median Merge Time</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ "{:,}".format(stats.avg_pr_size|int) }}</div>
+    <div class="stat-label">Avg PR Size (lines)</div>
+  </div>
+</div>
+
+<div class="charts-grid">
+  <div class="chart-card chart-card--wide">
+    {{ activity_chart|safe }}
+  </div>
+</div>
+
+<div class="charts-grid charts-grid--2col">
+  <div class="chart-card">
+    {{ size_chart|safe }}
+  </div>
+  <div class="chart-card">
+    {{ merge_time_chart|safe }}
+  </div>
+</div>
+
+<div class="charts-grid charts-grid--2col">
+  <div class="chart-card">
+    {{ authors_chart|safe }}
+  </div>
+  <div class="chart-card">
+    <div class="pr-summary-card">
+      <h3>Code Impact</h3>
+      <div class="impact-row">
+        <span class="impact-label">Total Additions</span>
+        <span class="impact-value impact-add">+{{ "{:,}".format(stats.total_additions) }}</span>
+      </div>
+      <div class="impact-row">
+        <span class="impact-label">Total Deletions</span>
+        <span class="impact-value impact-del">-{{ "{:,}".format(stats.total_deletions) }}</span>
+      </div>
+      <div class="impact-row">
+        <span class="impact-label">Net Change</span>
+        <span class="impact-value">{{ "{:,}".format(stats.total_additions - stats.total_deletions) }}</span>
+      </div>
+      <div class="impact-row">
+        <span class="impact-label">Closed (unmerged)</span>
+        <span class="impact-value muted">{{ "{:,}".format(stats.closed_unmerged) }}</span>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

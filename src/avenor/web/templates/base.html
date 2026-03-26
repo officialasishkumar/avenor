@@ -4,58 +4,119 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ page_title }} | Avenor</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}">
   </head>
   <body>
     <header class="topbar">
-      <div class="brand">
-        <a href="/">Avenor</a>
+      <div class="topbar-left">
+        <button class="sidebar-toggle" onclick="document.body.classList.toggle('sidebar-collapsed')" aria-label="Toggle sidebar">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+        </button>
+        <a href="/" class="brand">
+          <span class="brand-icon">A</span>
+          <span class="brand-text">Avenor</span>
+        </a>
       </div>
       <nav class="topnav">
         {% if selected_repository %}
-        <a class="{% if page_name == 'overview' %}active{% endif %}" href="/repos/{{ selected_repository.id }}/overview">Overview</a>
-        <a class="{% if page_name == 'contributions' %}active{% endif %}" href="/repos/{{ selected_repository.id }}/contributions">Contributions</a>
-        <a class="{% if page_name == 'contributors' %}active{% endif %}" href="/repos/{{ selected_repository.id }}/contributors">Contributors</a>
+        <a class="nav-pill {% if page_name == 'overview' %}active{% endif %}" href="/repos/{{ selected_repository.id }}/overview">Overview</a>
+        <a class="nav-pill {% if page_name == 'contributions' %}active{% endif %}" href="/repos/{{ selected_repository.id }}/contributions">Contributions</a>
+        <a class="nav-pill {% if page_name == 'contributors' %}active{% endif %}" href="/repos/{{ selected_repository.id }}/contributors">Contributors</a>
+        <a class="nav-pill {% if page_name == 'issues' %}active{% endif %}" href="/repos/{{ selected_repository.id }}/issues">Issues</a>
+        <a class="nav-pill {% if page_name == 'pull_requests' %}active{% endif %}" href="/repos/{{ selected_repository.id }}/pull-requests">Pull Requests</a>
+        <a class="nav-pill {% if page_name == 'codebase' %}active{% endif %}" href="/repos/{{ selected_repository.id }}/codebase">Codebase</a>
         {% endif %}
       </nav>
+      <div class="topbar-right">
+        {% if selected_repository %}
+        <form action="/repos/{{ selected_repository.id }}/sync" method="post" class="inline-form">
+          <button type="submit" class="btn btn-sm btn-sync" title="Sync {{ selected_repository.name }}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+            Sync
+          </button>
+        </form>
+        {% endif %}
+      </div>
     </header>
+
     <div class="layout">
       <aside class="sidebar">
         <div class="sidebar-section">
-          <h2>Tracked Repositories</h2>
+          <h2 class="sidebar-heading">Repositories</h2>
           <ul class="repo-list">
             {% for repository in repositories %}
             <li>
-              <a href="/repos/{{ repository.id }}/overview" class="{% if selected_repository and selected_repository.id == repository.id %}selected{% endif %}">
-                <span>{{ repository.full_name }}</span>
+              <a href="/repos/{{ repository.id }}/overview"
+                 class="repo-item {% if selected_repository and selected_repository.id == repository.id %}selected{% endif %}">
+                <div class="repo-item-info">
+                  <span class="repo-item-name">{{ repository.full_name }}</span>
+                  <span class="repo-item-meta">
+                    {% if repository.primary_language %}{{ repository.primary_language }}{% endif %}
+                    {% if repository.stars %} &middot; {{ repository.stars }} stars{% endif %}
+                  </span>
+                </div>
                 <span class="status status-{{ repository.sync_status }}">{{ repository.sync_status }}</span>
               </a>
             </li>
             {% else %}
-            <li class="muted">No repositories yet.</li>
+            <li class="muted" style="padding: 0.8rem;">No repositories yet.</li>
             {% endfor %}
           </ul>
         </div>
+
         <div class="sidebar-section">
-          <h2>Add Repository</h2>
+          <h2 class="sidebar-heading">Add Repository</h2>
           <form action="/repos" method="post" class="repo-form">
-            <label for="repo_url" class="muted">GitHub URL</label>
-            <input id="repo_url" name="repo_url" type="url" placeholder="https://github.com/owner/repo" required>
-            <button type="submit">Add</button>
+            <input name="repo_url" type="url" placeholder="https://github.com/owner/repo" required autocomplete="off">
+            <button type="submit" class="btn btn-primary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+              Add &amp; Track
+            </button>
           </form>
-          {% if selected_repository %}
-          <form action="/repos/{{ selected_repository.id }}/sync" method="post" class="repo-form repo-form--sync">
-            <button type="submit">Sync {{ selected_repository.name }}</button>
-          </form>
-          {% endif %}
+        </div>
+
+        <div class="sidebar-section sidebar-footer">
+          <div class="sidebar-brand">
+            <span class="muted">Avenor v0.2</span>
+            <span class="muted">Powered by Augur + 8knot</span>
+          </div>
         </div>
       </aside>
+
       <main class="content">
         {% if error %}
-        <div class="banner banner-error">{{ error }}</div>
+        <div class="banner banner-error">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+          {{ error }}
+        </div>
         {% endif %}
         {% block content %}{% endblock %}
       </main>
     </div>
+
+    <script>
+      // Auto-refresh sync status
+      function checkSyncStatus() {
+        document.querySelectorAll('.status-running').forEach(el => {
+          el.classList.add('status-pulse');
+        });
+      }
+      checkSyncStatus();
+      setInterval(() => {
+        fetch('/api/repos').then(r => r.json()).then(repos => {
+          const running = repos.some(r => r.sync_status === 'running');
+          if (running) {
+            checkSyncStatus();
+          } else {
+            document.querySelectorAll('.status-pulse').forEach(el => {
+              el.classList.remove('status-pulse');
+            });
+          }
+        }).catch(() => {});
+      }, 5000);
+    </script>
   </body>
 </html>

@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header">
+  <div class="page-header-content">
+    <div>
+      <div class="page-header-badge">Codebase</div>
+      <h1>Codebase Analysis</h1>
+      <p class="lede">File hotspots, code churn, and file type distribution for {{ selected_repository.full_name }}.</p>
+    </div>
+  </div>
+</section>
+
+<div class="charts-grid charts-grid--2col">
+  <div class="chart-card">
+    {{ churn_chart|safe }}
+  </div>
+  <div class="chart-card">
+    {{ file_types_chart|safe }}
+  </div>
+</div>
+
+<div class="charts-grid">
+  <div class="chart-card chart-card--wide">
+    {{ hotspot_chart|safe }}
+  </div>
+</div>
+
+{% if release_cadence_chart %}
+<div class="charts-grid">
+  <div class="chart-card chart-card--wide">
+    {{ release_cadence_chart|safe }}
+  </div>
+</div>
+{% endif %}
+
+<!-- Hotspot table -->
+<section class="section">
+  <div class="section-header">
+    <h2>File Hotspots</h2>
+    <p class="muted">Most frequently modified files across all commits</p>
+  </div>
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>File Path</th>
+          <th>Changes</th>
+          <th>Churn (lines)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for f in hotspots %}
+        <tr>
+          <td class="muted">{{ loop.index }}</td>
+          <td><code class="file-path">{{ f.label }}</code></td>
+          <td>
+            <div class="bar-inline">
+              <div class="bar-fill" style="width: {{ (f.value / hotspots[0].value * 100) if hotspots else 0 }}%"></div>
+              <span>{{ f.value }}</span>
+            </div>
+          </td>
+          <td class="muted">{{ "{:,}".format(f.churn) }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="muted">No file data collected.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

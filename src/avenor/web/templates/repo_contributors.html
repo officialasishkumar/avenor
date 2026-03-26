@@ -2,44 +2,92 @@
 
 {% block content %}
 <section class="page-header">
-  <div>
-    <h1>Contributors</h1>
-    <p class="lede">Top contributors and contributor growth for {{ selected_repository.full_name }}.</p>
+  <div class="page-header-content">
+    <div>
+      <div class="page-header-badge">Contributors</div>
+      <h1>Contributor Analysis</h1>
+      <p class="lede">Community health and contributor engagement for {{ selected_repository.full_name }}.</p>
+    </div>
   </div>
 </section>
 
-<section class="cards-grid cards-grid--charts">
-  <article class="card chart-card">
-    <h2>Top Contributors</h2>
-    {{ contributors_chart|safe }}
-  </article>
-  <article class="card chart-card">
-    <h2>New Contributors</h2>
-    {{ new_contributors_chart|safe }}
-  </article>
-</section>
+<!-- Health indicators -->
+<div class="stats-row stats-row--compact">
+  <div class="health-card">
+    <span class="health-label">Total Contributors</span>
+    <span class="health-value">{{ "{:,}".format(contributor_types.total) }}</span>
+  </div>
+  <div class="health-card">
+    <span class="health-label">Core (10+ commits)</span>
+    <span class="health-value health-good">{{ contributor_types.core }}</span>
+  </div>
+  <div class="health-card">
+    <span class="health-label">Repeat (2-10)</span>
+    <span class="health-value health-ok">{{ contributor_types.repeat }}</span>
+  </div>
+  <div class="health-card">
+    <span class="health-label">Drive-by (1)</span>
+    <span class="health-value">{{ contributor_types.drive_by }}</span>
+  </div>
+  <div class="health-card">
+    <span class="health-label">Bus Factor</span>
+    <span class="health-value {% if bus_factor.bus_factor > 3 %}health-good{% elif bus_factor.bus_factor > 1 %}health-ok{% else %}health-warn{% endif %}">{{ bus_factor.bus_factor }}</span>
+  </div>
+</div>
 
-<section class="card">
-  <h2>Contributor Ranking</h2>
-  <table class="data-table">
-    <thead>
-      <tr>
-        <th>Contributor</th>
-        <th>Contributions</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for contributor in top_contributors %}
-      <tr>
-        <td>{{ contributor.label }}</td>
-        <td>{{ contributor.value }}</td>
-      </tr>
-      {% else %}
-      <tr>
-        <td colspan="2" class="muted">No contributors collected.</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+<div class="charts-grid charts-grid--2col">
+  <div class="chart-card">
+    {{ contributors_chart|safe }}
+  </div>
+  <div class="chart-card">
+    {{ new_contributors_chart|safe }}
+  </div>
+</div>
+
+<div class="charts-grid">
+  <div class="chart-card chart-card--wide">
+    {{ domain_series_chart|safe }}
+  </div>
+</div>
+
+<!-- Top contributors table -->
+<section class="section">
+  <div class="section-header">
+    <h2>Contributor Ranking</h2>
+  </div>
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Contributor</th>
+          <th>Contributions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in top_contributors %}
+        <tr>
+          <td class="muted">{{ loop.index }}</td>
+          <td>
+            <div class="contributor-cell">
+              {% if c.avatar_url %}
+              <img src="{{ c.avatar_url }}" alt="" class="avatar" width="28" height="28">
+              {% endif %}
+              <span>{{ c.label }}</span>
+            </div>
+          </td>
+          <td>
+            <div class="bar-inline">
+              <div class="bar-fill" style="width: {{ (c.value / top_contributors[0].value * 100) if top_contributors else 0 }}%"></div>
+              <span>{{ "{:,}".format(c.value) }}</span>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3" class="muted">No contributors collected.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </section>
 {% endblock %}

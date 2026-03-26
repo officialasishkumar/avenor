@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header">
+  <div class="page-header-content">
+    <div>
+      <div class="page-header-badge">Issues</div>
+      <h1>Issue Analytics</h1>
+      <p class="lede">Issue activity, response times, and health metrics for {{ selected_repository.full_name }}.</p>
+    </div>
+  </div>
+</section>
+
+<div class="stats-row">
+  <div class="stat-card stat-card--accent">
+    <div class="stat-value">{{ "{:,}".format(stats.total) }}</div>
+    <div class="stat-label">Total Issues</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ "{:,}".format(stats.open) }}</div>
+    <div class="stat-label">Open</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ "{:,}".format(stats.closed) }}</div>
+    <div class="stat-label">Closed</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value {% if stats.close_rate > 70 %}health-good{% elif stats.close_rate > 40 %}health-ok{% else %}health-warn{% endif %}">{{ stats.close_rate }}%</div>
+    <div class="stat-label">Close Rate</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ stats.median_close_time_hours }}h</div>
+    <div class="stat-label">Median Close Time</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ stats.p90_close_time_hours }}h</div>
+    <div class="stat-label">P90 Close Time</div>
+  </div>
+</div>
+
+<div class="charts-grid">
+  <div class="chart-card chart-card--wide">
+    {{ activity_chart|safe }}
+  </div>
+</div>
+
+<div class="charts-grid charts-grid--2col">
+  <div class="chart-card">
+    {{ staleness_chart|safe }}
+  </div>
+  <div class="chart-card">
+    {{ authors_chart|safe }}
+  </div>
+</div>
+{% endblock %}

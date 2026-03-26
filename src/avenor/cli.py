@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import subprocess
+import sys
 from typing import Optional
 
 import typer
@@ -34,18 +36,42 @@ def list_repos_command() -> None:
     """List tracked repositories."""
     init_db()
     with session_scope() as session:
-        for repository in list_repositories(session):
-            typer.echo(f"{repository.id}: {repository.full_name} [{repository.sync_status}]")
+        repos = list_repositories(session)
+        if not repos:
+            typer.echo("No repositories tracked yet. Use 'avenor add-repo <url>' to add one.")
+            return
+        typer.echo(f"{'ID':<6} {'Repository':<40} {'Status':<10} {'Last Synced'}")
+        typer.echo("-" * 80)
+        for r in repos:
+            synced = r.last_synced_at.strftime("%Y-%m-%d %H:%M") if r.last_synced_at else "never"
+            typer.echo(f"{r.id:<6} {r.full_name:<40} {r.sync_status:<10} {synced}")
 
 
 @app.command("sync")
-def sync_command(repository_id: Optional[int] = typer.Option(None, "--repo-id")) -> None:
+def sync_command(
+    repository_id: Optional[int] = typer.Option(None, "--repo-id"),
+    background: bool = typer.Option(False, "--bg", help="Queue via Celery instead of running inline"),
+) -> None:
     """Synchronize one repository or all repositories."""
     init_db()
+
+    if background:
+        try:
+            from avenor.tasks.collection import sync_all_repos, sync_repo
+            if repository_id is not None:
+                result = sync_repo.delay(repository_id)
+                typer.echo(f"Queued sync task: {result.id}")
+            else:
+                result = sync_all_repos.delay()
+                typer.echo(f"Queued sync-all task: {result.id}")
+            return
+        except Exception as exc:
+            typer.echo(f"Celery not available ({exc}), falling back to inline sync.")
+
     with session_scope() as session:
         repositories = list_repositories(session)
         if repository_id is not None:
-            repositories = [repository for repository in repositories if repository.id == repository_id]
+            repositories = [r for r in repositories if r.id == repository_id]
 
         if not repositories:
             raise typer.BadParameter("No repositories available to sync.")
@@ -73,14 +99,34 @@ def serve_command(
     )
 
 
+@app.command("worker")
+def worker_command(
+    concurrency: int = typer.Option(2, "--concurrency", "-c"),
+    loglevel: str = typer.Option("info", "--loglevel", "-l"),
+) -> None:
+    """Start a Celery background worker for data collection."""
+    cmd = [
+        sys.executable, "-m", "celery",
+        "-A", "avenor.tasks",
+        "worker",
+        "-l", loglevel,
+        "-Q", "default,collection",
+        "-c", str(concurrency),
+    ]
+    typer.echo(f"Starting Celery worker (concurrency={concurrency})...")
+    subprocess.run(cmd, check=False)
+
+
 @app.command("quickstart")
 def quickstart_command(url: str) -> None:
     """Initialize the database, add one repo, and synchronize it."""
     init_db()
     with session_scope() as session:
         repository = add_repository(session, url)
+        typer.echo(f"Added {repository.full_name}, starting sync...")
         sync_repository(session, repository)
         typer.echo(f"Ready: {repository.full_name}")
+        typer.echo(f"Run 'avenor serve' to view the dashboard.")
 
 
 def main() -> None:

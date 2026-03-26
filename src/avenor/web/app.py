@@ -1,11 +1,17 @@
+"""Avenor web application — FastAPI with Jinja2 templates and REST API.
+
+Combines Augur's powerful data API with 8knot's rich visualization UI.
+"""
 from __future__ import annotations
 
+import asyncio
+import json
 from pathlib import Path
 from typing import Any
 
 import plotly.graph_objects as go
 import plotly.io as pio
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, Form, Query, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -13,14 +19,35 @@ from fastapi.templating import Jinja2Templates
 from avenor.db import init_db, session_scope
 from avenor.services.metrics import (
     get_activity_series,
+    get_bus_factor,
+    get_code_churn_series,
     get_commit_domain_breakdown,
+    get_comparison_stats,
+    get_contributor_activity_heatmap,
+    get_contributor_types,
+    get_domain_activity_series,
+    get_file_type_breakdown,
+    get_hotspot_files,
+    get_issue_activity_series,
+    get_issue_staleness,
+    get_issue_stats,
     get_language_breakdown,
     get_new_contributors_series,
     get_overview,
+    get_pr_activity_series,
+    get_pr_merge_time_series,
+    get_pr_size_distribution,
+    get_pr_stats,
+    get_release_cadence,
     get_top_contributors,
+    get_top_issue_authors,
+    get_top_pr_authors,
 )
 from avenor.services.repositories import add_repository, get_repository, list_repositories
 from avenor.services.sync import sync_repository
+
+# Plotly palette — same baby-blue gradient as 8knot
+COLORS = ["#38bdf8", "#818cf8", "#f472b6", "#34d399", "#fbbf24", "#fb923c", "#a78bfa", "#22d3ee"]
 
 
 def create_app() -> FastAPI:
@@ -28,41 +55,137 @@ def create_app() -> FastAPI:
     templates = Jinja2Templates(directory=str(base_dir / "templates"))
     init_db()
 
-    app = FastAPI(title="Avenor")
+    app = FastAPI(title="Avenor", description="Open-source analytics platform")
     app.mount("/static", StaticFiles(directory=str(base_dir / "static")), name="static")
 
+    # -------------------------------------------------------------------
+    # Health
+    # -------------------------------------------------------------------
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
         return {"status": "ok"}
+
+    # -------------------------------------------------------------------
+    # JSON API
+    # -------------------------------------------------------------------
 
     @app.get("/api/repos")
     def api_repos() -> list[dict[str, Any]]:
         with session_scope() as session:
             return [
                 {
-                    "id": repository.id,
-                    "full_name": repository.full_name,
-                    "url": repository.url,
-                    "sync_status": repository.sync_status,
-                    "last_synced_at": repository.last_synced_at.isoformat() if repository.last_synced_at else None,
+                    "id": r.id,
+                    "full_name": r.full_name,
+                    "url": r.url,
+                    "stars": r.stars,
+                    "forks": r.forks,
+                    "primary_language": r.primary_language,
+                    "sync_status": r.sync_status,
+                    "last_synced_at": r.last_synced_at.isoformat() if r.last_synced_at else None,
                 }
-                for repository in list_repositories(session)
+                for r in list_repositories(session)
             ]
+
+    @app.get("/api/repos/{repository_id}/overview")
+    def api_overview(repository_id: int):
+        with session_scope() as session:
+            ov = get_overview(session, repository_id)
+            return {k: v for k, v in ov.items() if k not in ("repository", "recent_releases")}
+
+    @app.get("/api/repos/{repository_id}/activity")
+    def api_activity(repository_id: int, period: str = "month"):
+        with session_scope() as session:
+            return get_activity_series(session, repository_id, period)
+
+    @app.get("/api/repos/{repository_id}/contributors")
+    def api_contributors(repository_id: int, limit: int = 15):
+        with session_scope() as session:
+            return get_top_contributors(session, repository_id, limit)
+
+    @app.get("/api/repos/{repository_id}/contributor-types")
+    def api_contributor_types(repository_id: int):
+        with session_scope() as session:
+            return get_contributor_types(session, repository_id)
+
+    @app.get("/api/repos/{repository_id}/bus-factor")
+    def api_bus_factor(repository_id: int):
+        with session_scope() as session:
+            return get_bus_factor(session, repository_id)
+
+    @app.get("/api/repos/{repository_id}/issues/stats")
+    def api_issue_stats(repository_id: int):
+        with session_scope() as session:
+            return get_issue_stats(session, repository_id)
+
+    @app.get("/api/repos/{repository_id}/prs/stats")
+    def api_pr_stats(repository_id: int):
+        with session_scope() as session:
+            return get_pr_stats(session, repository_id)
+
+    @app.get("/api/repos/{repository_id}/heatmap")
+    def api_heatmap(repository_id: int):
+        with session_scope() as session:
+            return get_contributor_activity_heatmap(session, repository_id)
+
+    @app.get("/api/repos/{repository_id}/hotspots")
+    def api_hotspots(repository_id: int, limit: int = 20):
+        with session_scope() as session:
+            return get_hotspot_files(session, repository_id, limit)
+
+    @app.get("/api/compare")
+    def api_compare(ids: str = Query(...)):
+        repo_ids = [int(x) for x in ids.split(",") if x.strip()]
+        with session_scope() as session:
+            return get_comparison_stats(session, repo_ids)
+
+    @app.post("/api/repos/{repository_id}/sync")
+    def api_sync(repository_id: int):
+        try:
+            from avenor.tasks.collection import sync_repo
+            result = sync_repo.delay(repository_id)
+            return {"task_id": result.id, "status": "queued"}
+        except Exception:
+            with session_scope() as session:
+                repo = get_repository(session, repository_id)
+                if repo is None:
+                    return JSONResponse({"error": "Repository not found"}, status_code=404)
+                sync_repository(session, repo)
+                return {"status": "completed"}
+
+    # -------------------------------------------------------------------
+    # HTML pages
+    # -------------------------------------------------------------------
+
+    def _common_ctx(request: Request, session, selected_repo=None, page_name="home", page_title="Avenor"):
+        repos = list_repositories(session)
+        return {
+            "request": request,
+            "repositories": repos,
+            "selected_repository": selected_repo,
+            "page_name": page_name,
+            "page_title": page_title,
+        }
 
     @app.get("/")
     def home(request: Request, error: str | None = None):
         with session_scope() as session:
-            repositories = list_repositories(session)
+            repos = list_repositories(session)
+            comparison = []
+            if len(repos) >= 2:
+                comparison = get_comparison_stats(session, [r.id for r in repos])
+
         return templates.TemplateResponse(
             request=request,
             name="home.html",
             context={
                 "request": request,
-                "repositories": repositories,
+                "repositories": repos,
                 "selected_repository": None,
-                "page_title": "Repositories",
+                "page_title": "Dashboard",
                 "page_name": "home",
                 "error": error,
+                "comparison": comparison,
+                "comparison_chart": _comparison_chart(comparison) if comparison else "",
             },
         )
 
@@ -70,8 +193,8 @@ def create_app() -> FastAPI:
     def create_repository(repo_url: str = Form(...)) -> RedirectResponse:
         try:
             with session_scope() as session:
-                repository = add_repository(session, repo_url)
-                target = f"/repos/{repository.id}/overview"
+                repo = add_repository(session, repo_url)
+                target = f"/repos/{repo.id}/overview"
         except ValueError as exc:
             target = f"/?error={str(exc)}"
         return RedirectResponse(target, status_code=303)
@@ -79,168 +202,285 @@ def create_app() -> FastAPI:
     @app.post("/repos/{repository_id}/sync")
     def sync_repository_route(repository_id: int, request: Request) -> RedirectResponse:
         referrer = request.headers.get("referer", f"/repos/{repository_id}/overview")
-        with session_scope() as session:
-            repository = get_repository(session, repository_id)
-            if repository is None:
-                return RedirectResponse("/", status_code=303)
-            sync_repository(session, repository)
+        try:
+            from avenor.tasks.collection import sync_repo
+            sync_repo.delay(repository_id)
+        except Exception:
+            with session_scope() as session:
+                repo = get_repository(session, repository_id)
+                if repo:
+                    sync_repository(session, repo)
         return RedirectResponse(referrer, status_code=303)
 
     @app.get("/repos/{repository_id}")
     def repo_root(repository_id: int) -> RedirectResponse:
         return RedirectResponse(f"/repos/{repository_id}/overview", status_code=303)
 
+    # -- Overview --
     @app.get("/repos/{repository_id}/overview")
     def repo_overview(request: Request, repository_id: int):
         with session_scope() as session:
-            repository = get_repository(session, repository_id)
-            if repository is None:
+            repo = get_repository(session, repository_id)
+            if repo is None:
                 return RedirectResponse("/", status_code=303)
             overview = get_overview(session, repository_id)
             activity = get_activity_series(session, repository_id)
             languages = get_language_breakdown(session, repository_id)
-            repositories = list_repositories(session)
+            bus = get_bus_factor(session, repository_id)
+            contributor_types = get_contributor_types(session, repository_id)
+            ctx = _common_ctx(request, session, repo, "overview", "Overview")
 
-        return templates.TemplateResponse(
-            request=request,
-            name="repo_overview.html",
-            context={
-                "request": request,
-                "repositories": repositories,
-                "selected_repository": repository,
-                "page_title": "Overview",
-                "page_name": "overview",
-                "overview": overview,
-                "activity_chart": _line_chart(
-                    "Repository Activity",
-                    {
-                        "Commits": activity["commits"],
-                        "Issues": activity["issues"],
-                        "Pull Requests": activity["pull_requests"],
-                    },
-                ),
-                "languages_chart": _pie_chart("Languages", languages),
-            },
-        )
+        ctx.update({
+            "overview": overview,
+            "bus_factor": bus,
+            "contributor_types": contributor_types,
+            "activity_chart": _multi_line_chart("Repository Activity", activity),
+            "languages_chart": _donut_chart("Languages", languages),
+            "contributor_types_chart": _donut_chart("Contributor Types", [
+                {"label": "Drive-by (1)", "value": contributor_types["drive_by"]},
+                {"label": "Repeat (2-10)", "value": contributor_types["repeat"]},
+                {"label": "Core (10+)", "value": contributor_types["core"]},
+            ]),
+        })
+        return templates.TemplateResponse(request=request, name="repo_overview.html", context=ctx)
 
+    # -- Contributions --
     @app.get("/repos/{repository_id}/contributions")
     def repo_contributions(request: Request, repository_id: int):
         with session_scope() as session:
-            repository = get_repository(session, repository_id)
-            if repository is None:
+            repo = get_repository(session, repository_id)
+            if repo is None:
                 return RedirectResponse("/", status_code=303)
             activity = get_activity_series(session, repository_id)
             domains = get_commit_domain_breakdown(session, repository_id)
-            repositories = list_repositories(session)
+            churn = get_code_churn_series(session, repository_id)
+            heatmap_data = get_contributor_activity_heatmap(session, repository_id)
+            ctx = _common_ctx(request, session, repo, "contributions", "Contributions")
 
-        return templates.TemplateResponse(
-            request=request,
-            name="repo_contributions.html",
-            context={
-                "request": request,
-                "repositories": repositories,
-                "selected_repository": repository,
-                "page_title": "Contributions",
-                "page_name": "contributions",
-                "activity_chart": _line_chart(
-                    "Contribution Activity",
-                    {
-                        "Commits": activity["commits"],
-                        "Issues": activity["issues"],
-                        "Pull Requests": activity["pull_requests"],
-                    },
-                ),
-                "domains_chart": _bar_chart("Commit Email Domains", domains),
-            },
-        )
+        ctx.update({
+            "activity_chart": _multi_line_chart("Contribution Activity", activity),
+            "domains_chart": _horizontal_bar_chart("Commit Email Domains", domains),
+            "churn_chart": _area_chart("Code Churn (Lines Changed)", churn),
+            "heatmap_chart": _heatmap_chart("Commit Activity Heatmap", heatmap_data),
+        })
+        return templates.TemplateResponse(request=request, name="repo_contributions.html", context=ctx)
 
+    # -- Contributors --
     @app.get("/repos/{repository_id}/contributors")
     def repo_contributors(request: Request, repository_id: int):
         with session_scope() as session:
-            repository = get_repository(session, repository_id)
-            if repository is None:
+            repo = get_repository(session, repository_id)
+            if repo is None:
                 return RedirectResponse("/", status_code=303)
-            top_contributors = get_top_contributors(session, repository_id)
-            new_contributors = get_new_contributors_series(session, repository_id)
-            repositories = list_repositories(session)
+            top = get_top_contributors(session, repository_id)
+            new_contribs = get_new_contributors_series(session, repository_id)
+            types = get_contributor_types(session, repository_id)
+            bus = get_bus_factor(session, repository_id)
+            domain_series = get_domain_activity_series(session, repository_id)
+            ctx = _common_ctx(request, session, repo, "contributors", "Contributors")
 
-        return templates.TemplateResponse(
-            request=request,
-            name="repo_contributors.html",
-            context={
-                "request": request,
-                "repositories": repositories,
-                "selected_repository": repository,
-                "page_title": "Contributors",
-                "page_name": "contributors",
-                "top_contributors": top_contributors,
-                "contributors_chart": _bar_chart("Top Contributors", top_contributors),
-                "new_contributors_chart": _line_chart(
-                    "New Contributors Over Time",
-                    {"New Contributors": new_contributors},
-                ),
-            },
-        )
+        ctx.update({
+            "top_contributors": top,
+            "contributor_types": types,
+            "bus_factor": bus,
+            "contributors_chart": _horizontal_bar_chart("Top Contributors", top),
+            "new_contributors_chart": _area_chart("New Contributors Over Time", new_contribs),
+            "domain_series_chart": _multi_line_chart("Activity by Email Domain", domain_series),
+        })
+        return templates.TemplateResponse(request=request, name="repo_contributors.html", context=ctx)
+
+    # -- Issues --
+    @app.get("/repos/{repository_id}/issues")
+    def repo_issues(request: Request, repository_id: int):
+        with session_scope() as session:
+            repo = get_repository(session, repository_id)
+            if repo is None:
+                return RedirectResponse("/", status_code=303)
+            stats = get_issue_stats(session, repository_id)
+            activity = get_issue_activity_series(session, repository_id)
+            staleness = get_issue_staleness(session, repository_id)
+            top_authors = get_top_issue_authors(session, repository_id)
+            ctx = _common_ctx(request, session, repo, "issues", "Issues")
+
+        ctx.update({
+            "stats": stats,
+            "activity_chart": _multi_line_chart("Issues Opened vs Closed", activity),
+            "staleness_chart": _donut_chart("Open Issue Staleness", staleness),
+            "authors_chart": _horizontal_bar_chart("Top Issue Authors", top_authors),
+        })
+        return templates.TemplateResponse(request=request, name="repo_issues.html", context=ctx)
+
+    # -- Pull Requests --
+    @app.get("/repos/{repository_id}/pull-requests")
+    def repo_prs(request: Request, repository_id: int):
+        with session_scope() as session:
+            repo = get_repository(session, repository_id)
+            if repo is None:
+                return RedirectResponse("/", status_code=303)
+            stats = get_pr_stats(session, repository_id)
+            activity = get_pr_activity_series(session, repository_id)
+            size_dist = get_pr_size_distribution(session, repository_id)
+            merge_times = get_pr_merge_time_series(session, repository_id)
+            top_authors = get_top_pr_authors(session, repository_id)
+            ctx = _common_ctx(request, session, repo, "pull_requests", "Pull Requests")
+
+        ctx.update({
+            "stats": stats,
+            "activity_chart": _multi_line_chart("PR Activity", activity),
+            "size_chart": _bar_chart("PR Size Distribution", size_dist),
+            "merge_time_chart": _area_chart("Average Merge Time (hours)", merge_times),
+            "authors_chart": _horizontal_bar_chart("Top PR Authors", top_authors),
+        })
+        return templates.TemplateResponse(request=request, name="repo_prs.html", context=ctx)
+
+    # -- Codebase --
+    @app.get("/repos/{repository_id}/codebase")
+    def repo_codebase(request: Request, repository_id: int):
+        with session_scope() as session:
+            repo = get_repository(session, repository_id)
+            if repo is None:
+                return RedirectResponse("/", status_code=303)
+            hotspots = get_hotspot_files(session, repository_id)
+            churn = get_code_churn_series(session, repository_id)
+            file_types = get_file_type_breakdown(session, repository_id)
+            release_cadence = get_release_cadence(session, repository_id)
+            ctx = _common_ctx(request, session, repo, "codebase", "Codebase")
+
+        ctx.update({
+            "hotspots": hotspots,
+            "churn_chart": _area_chart("Code Churn Over Time", churn),
+            "file_types_chart": _donut_chart("File Types Changed", file_types),
+            "hotspot_chart": _horizontal_bar_chart("Most Changed Files", hotspots[:15]),
+            "release_cadence_chart": _bar_chart("Days Between Releases", release_cadence) if release_cadence else "",
+        })
+        return templates.TemplateResponse(request=request, name="repo_codebase.html", context=ctx)
 
     return app
 
 
-def _line_chart(title: str, series_map: dict[str, list[dict[str, Any]]]) -> str:
+# ---------------------------------------------------------------------------
+# Chart helpers — Plotly → HTML fragments with dark theme
+# ---------------------------------------------------------------------------
+
+_LAYOUT_BASE = dict(
+    template="plotly_dark",
+    paper_bgcolor="rgba(0,0,0,0)",
+    plot_bgcolor="rgba(0,0,0,0)",
+    font=dict(family="IBM Plex Sans, sans-serif", color="#e5eefb"),
+    margin=dict(l=50, r=20, t=45, b=45),
+    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+)
+
+
+def _multi_line_chart(title: str, series_map: dict[str, list[dict[str, Any]]]) -> str:
     fig = go.Figure()
-    for series_name, rows in series_map.items():
-        fig.add_trace(
-            go.Scatter(
-                x=[row["label"] for row in rows],
-                y=[row["value"] for row in rows],
-                mode="lines+markers",
-                name=series_name,
-            )
-        )
-    fig.update_layout(
-        title=title,
-        template="plotly_dark",
-        paper_bgcolor="#111827",
-        plot_bgcolor="#111827",
-        margin={"l": 40, "r": 20, "t": 50, "b": 40},
-    )
+    for idx, (name, rows) in enumerate(series_map.items()):
+        color = COLORS[idx % len(COLORS)]
+        fig.add_trace(go.Scatter(
+            x=[r["label"] for r in rows],
+            y=[r["value"] for r in rows],
+            mode="lines+markers",
+            name=name.replace("_", " ").title(),
+            line=dict(color=color, width=2),
+            marker=dict(size=5),
+        ))
+    fig.update_layout(title=title, **_LAYOUT_BASE)
+    fig.update_xaxes(gridcolor="rgba(255,255,255,0.06)")
+    fig.update_yaxes(gridcolor="rgba(255,255,255,0.06)")
     return pio.to_html(fig, include_plotlyjs="cdn", full_html=False)
 
 
+def _area_chart(title: str, rows: list[dict[str, Any]]) -> str:
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=[r["label"] for r in rows],
+        y=[r["value"] for r in rows],
+        fill="tozeroy",
+        line=dict(color=COLORS[0], width=2),
+        fillcolor="rgba(56,189,248,0.15)",
+    ))
+    fig.update_layout(title=title, showlegend=False, **_LAYOUT_BASE)
+    fig.update_xaxes(gridcolor="rgba(255,255,255,0.06)")
+    fig.update_yaxes(gridcolor="rgba(255,255,255,0.06)")
+    return pio.to_html(fig, include_plotlyjs=False, full_html=False)
+
+
 def _bar_chart(title: str, rows: list[dict[str, Any]]) -> str:
-    fig = go.Figure(
-        data=[
-            go.Bar(
-                x=[row["label"] for row in rows],
-                y=[row["value"] for row in rows],
-                marker_color="#38bdf8",
-            )
-        ]
-    )
-    fig.update_layout(
-        title=title,
-        template="plotly_dark",
-        paper_bgcolor="#111827",
-        plot_bgcolor="#111827",
-        margin={"l": 40, "r": 20, "t": 50, "b": 80},
-    )
+    fig = go.Figure(data=[go.Bar(
+        x=[r["label"] for r in rows],
+        y=[r["value"] for r in rows],
+        marker_color=COLORS[0],
+        marker_line=dict(width=0),
+    )])
+    fig.update_layout(title=title, showlegend=False, **_LAYOUT_BASE)
+    fig.update_xaxes(gridcolor="rgba(255,255,255,0.06)")
+    fig.update_yaxes(gridcolor="rgba(255,255,255,0.06)")
     return pio.to_html(fig, include_plotlyjs=False, full_html=False)
 
 
-def _pie_chart(title: str, rows: list[dict[str, Any]]) -> str:
-    fig = go.Figure(
-        data=[
-            go.Pie(
-                labels=[row["label"] for row in rows],
-                values=[row["value"] for row in rows],
-                hole=0.45,
-            )
-        ]
-    )
-    fig.update_layout(
-        title=title,
-        template="plotly_dark",
-        paper_bgcolor="#111827",
-        plot_bgcolor="#111827",
-        margin={"l": 20, "r": 20, "t": 50, "b": 20},
-    )
+def _horizontal_bar_chart(title: str, rows: list[dict[str, Any]]) -> str:
+    reversed_rows = list(reversed(rows))
+    fig = go.Figure(data=[go.Bar(
+        x=[r["value"] for r in reversed_rows],
+        y=[r["label"] for r in reversed_rows],
+        orientation="h",
+        marker_color=COLORS[0],
+        marker_line=dict(width=0),
+    )])
+    fig.update_layout(title=title, showlegend=False, **_LAYOUT_BASE,
+                      margin=dict(l=180, r=20, t=45, b=45))
+    fig.update_xaxes(gridcolor="rgba(255,255,255,0.06)")
+    fig.update_yaxes(gridcolor="rgba(255,255,255,0.06)")
     return pio.to_html(fig, include_plotlyjs=False, full_html=False)
+
+
+def _donut_chart(title: str, rows: list[dict[str, Any]]) -> str:
+    fig = go.Figure(data=[go.Pie(
+        labels=[r["label"] for r in rows],
+        values=[r["value"] for r in rows],
+        hole=0.5,
+        marker=dict(colors=COLORS[:len(rows)]),
+        textinfo="label+percent",
+        textposition="outside",
+    )])
+    fig.update_layout(title=title, showlegend=False, **_LAYOUT_BASE)
+    return pio.to_html(fig, include_plotlyjs=False, full_html=False)
+
+
+def _heatmap_chart(title: str, data: list[dict[str, Any]]) -> str:
+    days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    hours = list(range(24))
+    z = [[0] * 24 for _ in range(7)]
+    for d in data:
+        day_idx = days.index(d["day"])
+        z[day_idx][d["hour"]] = d["value"]
+
+    fig = go.Figure(data=go.Heatmap(
+        z=z,
+        x=[f"{h:02d}:00" for h in hours],
+        y=days,
+        colorscale=[[0, "rgba(9,17,31,0.8)"], [0.5, "#38bdf8"], [1, "#f472b6"]],
+        showscale=True,
+    ))
+    fig.update_layout(title=title, **_LAYOUT_BASE)
+    return pio.to_html(fig, include_plotlyjs=False, full_html=False)
+
+
+def _comparison_chart(data: list[dict[str, Any]]) -> str:
+    names = [d["full_name"] for d in data]
+    fig = go.Figure()
+    for metric, color in [("commits", COLORS[0]), ("pull_requests", COLORS[1]), ("issues", COLORS[2])]:
+        fig.add_trace(go.Bar(
+            name=metric.replace("_", " ").title(),
+            x=names,
+            y=[d[metric] for d in data],
+            marker_color=color,
+        ))
+    fig.update_layout(
+        title="Repository Comparison",
+        barmode="group",
+        **_LAYOUT_BASE,
+    )
+    fig.update_xaxes(gridcolor="rgba(255,255,255,0.06)")
+    fig.update_yaxes(gridcolor="rgba(255,255,255,0.06)")
+    return pio.to_html(fig, include_plotlyjs="cdn", full_html=False)

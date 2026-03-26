@@ -17,6 +17,9 @@ class Settings:
     port: int
     github_token: str | None
     secret_key: str
+    redis_url: str
+    celery_broker_url: str
+    celery_result_backend: str
 
     def ensure_directories(self) -> None:
         self.data_dir.mkdir(parents=True, exist_ok=True)
@@ -34,6 +37,8 @@ def get_settings() -> Settings:
     repos_dir = data_dir / "repos"
     default_database = data_dir / "avenor.db"
 
+    redis_url = os.getenv("AVENOR_REDIS_URL", "redis://localhost:6379/0")
+
     settings = Settings(
         app_name="Avenor",
         project_root=project_root,
@@ -44,6 +49,9 @@ def get_settings() -> Settings:
         port=int(os.getenv("AVENOR_PORT", "8000")),
         github_token=os.getenv("AVENOR_GITHUB_TOKEN"),
         secret_key=os.getenv("AVENOR_SECRET_KEY", "development-only-secret-key"),
+        redis_url=redis_url,
+        celery_broker_url=os.getenv("AVENOR_CELERY_BROKER", redis_url),
+        celery_result_backend=os.getenv("AVENOR_CELERY_BACKEND", redis_url),
     )
     settings.ensure_directories()
     return settings

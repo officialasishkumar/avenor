@@ -1,0 +1,124 @@
+version: "3.8"
+
+services:
+  # -----------------------------------------------------------------------
+  # Redis — message broker + result backend (like Augur's RabbitMQ + Redis)
+  # -----------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    networks:
+      - avenor
+
+  # -----------------------------------------------------------------------
+  # PostgreSQL — production database (SQLite used for local dev)
+  # -----------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: avenor
+      POSTGRES_PASSWORD: avenor
+      POSTGRES_DB: avenor
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U avenor"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    networks:
+      - avenor
+
+  # -----------------------------------------------------------------------
+  # Avenor API — FastAPI web application
+  # -----------------------------------------------------------------------
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      AVENOR_DATABASE_URL: postgresql+psycopg2://avenor:avenor@postgres:5432/avenor
+      AVENOR_REDIS_URL: redis://redis:6379/0
+      AVENOR_CELERY_BROKER: redis://redis:6379/0
+      AVENOR_CELERY_BACKEND: redis://redis:6379/1
+      AVENOR_HOST: "0.0.0.0"
+      AVENOR_PORT: "8000"
+      AVENOR_GITHUB_TOKEN: ${AVENOR_GITHUB_TOKEN:-}
+      AVENOR_DATA_DIR: /data
+    volumes:
+      - app-data:/data
+      - app-repos:/data/repos
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "avenor init-db && avenor serve --host 0.0.0.0 --port 8000"
+    networks:
+      - avenor
+
+  # -----------------------------------------------------------------------
+  # Celery Worker — background data collection (like Augur's Celery workers)
+  # -----------------------------------------------------------------------
+  worker:
+    build: .
+    environment:
+      AVENOR_DATABASE_URL: postgresql+psycopg2://avenor:avenor@postgres:5432/avenor
+      AVENOR_REDIS_URL: redis://redis:6379/0
+      AVENOR_CELERY_BROKER: redis://redis:6379/0
+      AVENOR_CELERY_BACKEND: redis://redis:6379/1
+      AVENOR_GITHUB_TOKEN: ${AVENOR_GITHUB_TOKEN:-}
+      AVENOR_DATA_DIR: /data
+    volumes:
+      - app-data:/data
+      - app-repos:/data/repos
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    command: >
+      celery -A avenor.tasks worker -l info -Q default,collection -c 2
+    networks:
+      - avenor
+
+  # -----------------------------------------------------------------------
+  # Flower — Celery task monitoring UI (like Augur's Flower service)
+  # -----------------------------------------------------------------------
+  flower:
+    build: .
+    ports:
+      - "5555:5555"
+    environment:
+      AVENOR_CELERY_BROKER: redis://redis:6379/0
+      AVENOR_CELERY_BACKEND: redis://redis:6379/1
+      AVENOR_REDIS_URL: redis://redis:6379/0
+      AVENOR_DATA_DIR: /data
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: >
+      celery -A avenor.tasks flower --port=5555
+    networks:
+      - avenor
+
+volumes:
+  redis-data:
+  pg-data:
+  app-data:
+  app-repos:
+
+networks:
+  avenor:
+    driver: bridge
