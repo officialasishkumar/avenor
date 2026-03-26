@@ -14,6 +14,11 @@ GITHUB_REPO_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Shorthand: owner/repo (no slashes beyond the single separator)
+SHORTHAND_RE = re.compile(
+    r"^(?P<owner>[A-Za-z0-9_.-]+)/(?P<name>[A-Za-z0-9_.-]+)$",
+)
+
 
 @dataclass(frozen=True)
 class ParsedRepositoryUrl:
@@ -39,13 +44,23 @@ def parse_repository_url(url: str) -> ParsedRepositoryUrl:
         return ParsedRepositoryUrl(host="local", owner=owner, name=name)
 
     match = GITHUB_REPO_RE.match(candidate)
-    if not match:
-        raise ValueError("Use a GitHub repository URL or a local git repository path.")
-    return ParsedRepositoryUrl(
-        host="github.com",
-        owner=match.group("owner").lower(),
-        name=match.group("name").removesuffix(".git"),
-    )
+    if match:
+        return ParsedRepositoryUrl(
+            host="github.com",
+            owner=match.group("owner").lower(),
+            name=match.group("name").removesuffix(".git"),
+        )
+
+    # Accept owner/repo shorthand (e.g. "torvalds/linux")
+    shorthand = SHORTHAND_RE.match(candidate)
+    if shorthand:
+        return ParsedRepositoryUrl(
+            host="github.com",
+            owner=shorthand.group("owner").lower(),
+            name=shorthand.group("name"),
+        )
+
+    raise ValueError("Use a GitHub URL (https://github.com/owner/repo), shorthand (owner/repo), or a local git path.")
 
 
 def list_repositories(session: Session) -> list[Repository]:

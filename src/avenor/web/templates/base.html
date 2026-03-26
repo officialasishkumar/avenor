@@ -94,7 +94,7 @@
         <div class="sidebar-section">
           <h2 class="sidebar-heading">Add Repository</h2>
           <form id="add-repo-form" class="repo-form">
-            <input id="add-repo-input" name="repo_url" type="url" placeholder="https://github.com/owner/repo" required autocomplete="off">
+            <input id="add-repo-input" name="repo_url" type="text" placeholder="owner/repo or full GitHub URL" required autocomplete="off">
             <label class="toggle-label">
               <input type="checkbox" id="auto-sync-toggle" checked>
               <span>Auto-sync after adding</span>
@@ -118,6 +118,10 @@
         {% endif %}
 
         <div class="sidebar-section sidebar-footer">
+          <a href="/settings" class="sidebar-settings-link {% if page_name == 'settings' %}active{% endif %}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            Settings
+          </a>
           <div class="sidebar-brand">
             <span class="muted">Avenor v0.2</span>
           </div>

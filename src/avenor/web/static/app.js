@@ -286,6 +286,100 @@
   }
 
   // -----------------------------------------------------------------------
+  // Settings page
+  // -----------------------------------------------------------------------
+
+  function initSettingsForm() {
+    const form = document.getElementById('github-token-form');
+    if (!form) return;
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const input = document.getElementById('github-token-input');
+      const token = input ? input.value.trim() : '';
+      if (!token) {
+        showToast('Please enter a token', 'warning');
+        return;
+      }
+
+      const btn = document.getElementById('save-token-btn');
+      if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Saving...'; }
+
+      try {
+        const resp = await fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ github_token: token }),
+        });
+        if (resp.ok) {
+          showToast('GitHub token saved!', 'success');
+          setTimeout(() => window.location.reload(), 800);
+        } else {
+          showToast('Failed to save settings', 'error');
+        }
+      } catch (err) {
+        showToast('Network error', 'error');
+      } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = 'Save Token'; }
+      }
+    });
+  }
+
+  async function clearGithubToken() {
+    if (!confirm('Remove the GitHub token from UI settings?')) return;
+    try {
+      const resp = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ github_token: '' }),
+      });
+      if (resp.ok) {
+        showToast('Token cleared', 'success');
+        setTimeout(() => window.location.reload(), 800);
+      }
+    } catch (err) {
+      showToast('Network error', 'error');
+    }
+  }
+
+  window.clearGithubToken = clearGithubToken;
+
+  // -----------------------------------------------------------------------
+  // Sync All
+  // -----------------------------------------------------------------------
+
+  async function syncAll() {
+    const btn = document.getElementById('sync-all-btn');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Syncing All...'; }
+
+    try {
+      const resp = await fetch('/api/repos/sync-all', { method: 'POST' });
+      const data = await resp.json();
+
+      if (data.status === 'no_repos') {
+        showToast('No repositories to sync', 'warning');
+      } else {
+        showToast('Sync started for all repositories', 'info');
+        // Start polling for each repo
+        if (data.results) {
+          data.results.forEach(r => {
+            if (r.status === 'queued') startSyncPolling(r.id);
+          });
+        }
+      }
+    } catch (err) {
+      showToast('Failed to sync all repositories', 'error');
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/></svg> Sync All';
+      }
+    }
+  }
+
+  window.syncAll = syncAll;
+
+  // -----------------------------------------------------------------------
   // Initialize everything on DOM ready
   // -----------------------------------------------------------------------
 
@@ -294,6 +388,7 @@
     initAddRepoForm();
     initPeriodSelector();
     initMobileNav();
+    initSettingsForm();
     globalStatusPoll();
 
     // Start polling for any currently-running repos

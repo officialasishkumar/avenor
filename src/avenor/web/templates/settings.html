@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header">
+  <div class="page-header-content">
+    <div>
+      <div class="page-header-badge">Configuration</div>
+      <h1>Settings</h1>
+      <p class="lede">Configure your Avenor instance. Settings are saved locally.</p>
+    </div>
+  </div>
+</section>
+
+<!-- GitHub Token -->
+<section class="section">
+  <div class="section-header">
+    <h2>GitHub Token</h2>
+    <p class="muted">A personal access token increases the API rate limit from 60 to 5,000 requests per hour.</p>
+  </div>
+
+  <div class="settings-card">
+    <div class="settings-status">
+      {% if github_token_configured %}
+      <span class="status status-ready">configured</span>
+      <span class="muted" style="margin-left: 0.5rem;">
+        {{ github_token_masked }}
+        {% if github_token_source == 'environment' %}
+        (from environment variable)
+        {% else %}
+        (from UI settings)
+        {% endif %}
+      </span>
+      {% else %}
+      <span class="status status-idle">not configured</span>
+      <span class="muted" style="margin-left: 0.5rem;">Syncing will be limited to 60 API requests per hour.</span>
+      {% endif %}
+    </div>
+
+    <form id="github-token-form" class="settings-form">
+      <div class="settings-field">
+        <label for="github-token-input" class="settings-label">Personal Access Token</label>
+        <input id="github-token-input" type="password" class="settings-input"
+               placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off">
+        <p class="settings-help">
+          Create a token at GitHub &rarr; Settings &rarr; Developer settings &rarr; Personal access tokens.
+          The token needs <code>repo</code> scope (or <code>public_repo</code> for public repos only).
+        </p>
+      </div>
+      <div class="settings-actions">
+        <button type="submit" id="save-token-btn" class="btn btn-primary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
+          Save Token
+        </button>
+        {% if github_token_configured and github_token_source == 'ui' %}
+        <button type="button" id="clear-token-btn" class="btn btn-danger-outline" onclick="clearGithubToken()">
+          Clear Token
+        </button>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+</section>
+
+<!-- System Info -->
+<section class="section">
+  <div class="section-header">
+    <h2>System Information</h2>
+    <p class="muted">Read-only configuration from the server environment.</p>
+  </div>
+
+  <div class="settings-card">
+    <div class="settings-info-grid">
+      <div class="settings-info-row">
+        <span class="settings-info-label">Data Directory</span>
+        <code class="settings-info-value">{{ data_dir }}</code>
+      </div>
+      <div class="settings-info-row">
+        <span class="settings-info-label">Database</span>
+        <code class="settings-info-value">{{ database_url }}</code>
+      </div>
+      <div class="settings-info-row">
+        <span class="settings-info-label">Redis</span>
+        <code class="settings-info-value">{{ redis_url }}</code>
+      </div>
+      <div class="settings-info-row">
+        <span class="settings-info-label">Version</span>
+        <code class="settings-info-value">Avenor v0.2</code>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

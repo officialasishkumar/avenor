@@ -6,7 +6,7 @@ from typing import Any
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from avenor.config import get_settings
+from avenor.config import get_github_token, get_settings
 from avenor.models import (
     CollectionJob,
     Commit,
@@ -93,7 +93,7 @@ def sync_repository(session: Session, repository: Repository) -> Repository:
         github_job = _ensure_job(session, repository, "github")
         github_run = _start_job_run(session, github_job)
         try:
-            github_snapshot = GitHubCollector(settings.github_token).collect(repository.url)
+            github_snapshot = GitHubCollector(get_github_token()).collect(repository.url)
             _replace_repository_children(session, repository)
             _apply_github_snapshot(session, repository, github_snapshot)
             _finish_job_run(

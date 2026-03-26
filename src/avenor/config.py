@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass
 from functools import lru_cache
@@ -59,3 +60,37 @@ def get_settings() -> Settings:
 
 def get_config() -> Settings:
     return get_settings()
+
+
+# ---------------------------------------------------------------------------
+# UI-configurable settings (persisted to data_dir/settings.json)
+# ---------------------------------------------------------------------------
+
+def _ui_settings_path() -> Path:
+    return get_settings().data_dir / "settings.json"
+
+
+def load_ui_settings() -> dict:
+    """Load UI-configurable settings from the settings JSON file."""
+    path = _ui_settings_path()
+    if path.exists():
+        try:
+            return json.loads(path.read_text())
+        except (json.JSONDecodeError, OSError):
+            return {}
+    return {}
+
+
+def save_ui_settings(settings: dict) -> None:
+    """Save UI-configurable settings to the settings JSON file."""
+    path = _ui_settings_path()
+    path.write_text(json.dumps(settings, indent=2))
+
+
+def get_github_token() -> str | None:
+    """Get GitHub token: env var takes precedence, then UI settings."""
+    env_token = os.getenv("AVENOR_GITHUB_TOKEN")
+    if env_token:
+        return env_token
+    ui = load_ui_settings()
+    return ui.get("github_token") or None

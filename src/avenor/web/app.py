@@ -1,6 +1,7 @@
 """Avenor web application — FastAPI with Jinja2 templates and REST API."""
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
+from avenor.config import get_github_token, get_settings, load_ui_settings, save_ui_settings
 from avenor.db import init_db, session_scope
 from avenor.services.metrics import (
     get_activity_series,
@@ -170,6 +172,70 @@ def create_app() -> FastAPI:
                     return JSONResponse({"error": "Repository not found"}, status_code=404)
                 sync_repository(session, repo)
                 return {"status": "completed"}
+
+    # -------------------------------------------------------------------
+    # JSON API — Settings
+    # -------------------------------------------------------------------
+
+    @app.get("/api/settings")
+    def api_get_settings():
+        ui = load_ui_settings()
+        token = get_github_token()
+        return {
+            "github_token_configured": bool(token),
+            "github_token_source": "environment" if os.getenv("AVENOR_GITHUB_TOKEN") else ("ui" if ui.get("github_token") else None),
+            "github_token_masked": f"ghp_...{token[-4:]}" if token and len(token) > 8 else ("***" if token else None),
+            "data_dir": str(get_settings().data_dir),
+        }
+
+    class SaveSettingsRequest(BaseModel):
+        github_token: str | None = None
+
+    @app.post("/api/settings")
+    def api_save_settings(body: SaveSettingsRequest):
+        ui = load_ui_settings()
+        if body.github_token is not None:
+            token = body.github_token.strip()
+            if token:
+                ui["github_token"] = token
+            else:
+                ui.pop("github_token", None)
+        save_ui_settings(ui)
+        return {"status": "saved"}
+
+    # -------------------------------------------------------------------
+    # JSON API — Sync All
+    # -------------------------------------------------------------------
+
+    @app.post("/api/repos/sync-all")
+    def api_sync_all():
+        with session_scope() as session:
+            repos = list_repositories(session)
+            if not repos:
+                return {"status": "no_repos", "synced": 0}
+            results = []
+            for repo in repos:
+                if repo.sync_status == "running":
+                    results.append({"id": repo.id, "status": "already_running"})
+                    continue
+                try:
+                    from avenor.tasks.collection import sync_repo
+                    sync_repo.delay(repo.id)
+                    results.append({"id": repo.id, "status": "queued"})
+                except Exception:
+                    results.append({"id": repo.id, "status": "inline_pending"})
+        # Inline fallback for repos that couldn't be queued
+        for r in results:
+            if r["status"] == "inline_pending":
+                try:
+                    with session_scope() as session:
+                        repo = get_repository(session, r["id"])
+                        if repo:
+                            sync_repository(session, repo)
+                    r["status"] = "completed"
+                except Exception as exc:
+                    r["status"] = f"failed: {exc}"
+        return {"status": "ok", "results": results}
 
     # -------------------------------------------------------------------
     # JSON API — Metrics
@@ -441,6 +507,23 @@ def create_app() -> FastAPI:
             "release_cadence_chart": _bar_chart("Days Between Releases", release_cadence) if release_cadence else "",
         })
         return templates.TemplateResponse(request=request, name="repo_codebase.html", context=ctx)
+
+    # -- Settings --
+    @app.get("/settings")
+    def settings_page(request: Request):
+        ui = load_ui_settings()
+        token = get_github_token()
+        with session_scope() as session:
+            ctx = _common_ctx(request, session, page_name="settings", page_title="Settings")
+        ctx.update({
+            "github_token_configured": bool(token),
+            "github_token_source": "environment" if os.getenv("AVENOR_GITHUB_TOKEN") else ("ui" if ui.get("github_token") else None),
+            "github_token_masked": f"ghp_...{token[-4:]}" if token and len(token) > 8 else ("***" if token else None),
+            "data_dir": str(get_settings().data_dir),
+            "database_url": get_settings().database_url,
+            "redis_url": get_settings().redis_url,
+        })
+        return templates.TemplateResponse(request=request, name="settings.html", context=ctx)
 
     return app
 
